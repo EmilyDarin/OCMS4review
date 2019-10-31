@@ -4,7 +4,7 @@ output:
     code_folding: hide
 ---
 
-# Evaluation of OC MS4 monitoring program
+# Evaluation of OC MS4 monitoring program {.tabset}
 
 ```{r setup, message = F, warning = F, results = 'hide'}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
