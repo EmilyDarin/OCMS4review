@@ -20,16 +20,51 @@ mapviewOptions(leafletHeight = 300)
 
 prj <- 4326 # wgs84
 
+data(dwdat)
 data(medat)
 ```
 
-## Dry weather monitoring
+## Dry weather monitoring {.tabset .tabset-pills}
+
+### Map summary
+
+Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
+
+```{r}
+tomap <- dwdat %>% 
+  select(StationCode, Watershed, Longitude, Latitude) %>% 
+  unique %>% 
+  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
+
+m1 <- mapview(tomap, zcol = 'Watershed', layer.name = 'Watershed location', homebutton = F)
+
+tomap <- dwdat %>% 
+  select(StationCode, Parameter, Longitude, Latitude) %>% 
+  unique %>% 
+  group_by(StationCode, Longitude, Latitude) %>% 
+  summarise(n = n()) %>% 
+  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
+
+m2 <- mapview(tomap, zcol = 'n', layer.name = 'Number of parameters', homebutton = F, col.regions = magma)
+
+tomap <- dwdat %>% 
+  select(StationCode, yr = Date, Longitude, Latitude) %>% 
+  mutate(yr = year(yr)) %>% 
+  unique %>% 
+  group_by(StationCode, Longitude, Latitude) %>% 
+  summarise(n = n()) %>% 
+  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
+
+m3 <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma)
+
+leafsync::sync(m1, m2, m3, ncol = 1) 
+```
 
 ## Mass emissions {.tabset .tabset-pills}
 
 ### Map summary
 
-Number of parameters measured at each station. 
+Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
 
 ```{r}
 tomap <- medat %>% 

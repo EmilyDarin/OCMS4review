@@ -4,9 +4,20 @@ library(here)
 
 # dry weather monitoring --------------------------------------------------
 
-dwm_dat <- read.csv(here::here('data/raw', 'DWM_ALL_DATA.csv'), stringsAsFactors = F)
-dwm_stat <- read.csv(here::here('data/raw', 'DWM_Stations.csv'), stringsAsFactors = F)
-dwm_parm <- read.csv(here::here('data/raw', 'DWM_PARAMETER.csv'), stringsAsFactors = F)
+dw_dat <- read.csv(here::here('data/raw', 'DWM_ALL_DATA.csv'), stringsAsFactors = F)
+dw_stat <- read.csv(here::here('data/raw', 'DWM_Stations.csv'), stringsAsFactors = F)
+dw_parm <- read.csv(here::here('data/raw', 'DWM_PARAMETER.csv'), stringsAsFactors = F)
+
+dwdat <- dw_dat %>% 
+  mutate(
+    Date = ymd_hms(Date, tz = 'Pacific/Pitcairn'), 
+    Date = as.Date(Date)
+  ) %>% 
+  rename(StationCode = Station) %>% 
+  inner_join(dw_stat, by = c('StationCode', 'Watershed')) %>% 
+  select(StationCode, Watershed, Date, Parameter, Result, Units, Longitude, Latitude)
+
+save(dwdat, file = here::here('data', 'dwdat.RData'), compress = 'xz')
 
 # mass emissions ----------------------------------------------------------
 

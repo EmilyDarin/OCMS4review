@@ -39,3 +39,6 @@ General questions of interest in reviewing the program include the following:
 * What is the status of program effectiveness?
 * How can OC monitoring link/incorporate non-permit monitoring data?
 
+status and trends - provide one example
+
+mass emissions on san diego creek at campus (university) F05 site id, pick a nutrient or several nutrients, theyve been monitoring it for 70 years and there's a tmdl or so - do some simple trend analysis plots
