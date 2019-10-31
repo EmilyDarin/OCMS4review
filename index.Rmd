@@ -1,0 +1,22 @@
+---
+output: 
+  bookdown::html_document2:
+    code_folding: hide
+---
+
+# Evaluation of OC MS4 monitoring program
+
+```{r setup, message = F, warning = F, results = 'hide'}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
+
+library(tidyverse)
+library(sf)
+
+prj <- 4326 # wgs84
+
+
+```
+
+## Dry weather monitoring
+
+## Mass emissions
