@@ -4,7 +4,7 @@ output:
     code_folding: hide
 ---
 
-# Evaluation of OC MS4 monitoring program {.tabset}
+# Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
 
 ```{r setup, message = F, warning = F, results = 'hide'}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
@@ -15,6 +15,8 @@ library(mapview)
 library(lubridate)
 library(leafsync)
 library(viridisLite)
+library(lubridate)
+library(patchwork)
 
 mapviewOptions(leafletHeight = 300)
 
@@ -24,45 +26,7 @@ data(dwdat)
 data(medat)
 ```
 
-## Dry weather monitoring {.tabset .tabset-pills}
-
-### Map summary
-
-Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
-
-```{r}
-tomap <- dwdat %>% 
-  select(StationCode, Watershed, Longitude, Latitude) %>% 
-  unique %>% 
-  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
-
-m1 <- mapview(tomap, zcol = 'Watershed', layer.name = 'Watershed location', homebutton = F)
-
-tomap <- dwdat %>% 
-  select(StationCode, Parameter, Longitude, Latitude) %>% 
-  unique %>% 
-  group_by(StationCode, Longitude, Latitude) %>% 
-  summarise(n = n()) %>% 
-  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
-
-m2 <- mapview(tomap, zcol = 'n', layer.name = 'Number of parameters', homebutton = F, col.regions = magma)
-
-tomap <- dwdat %>% 
-  select(StationCode, yr = Date, Longitude, Latitude) %>% 
-  mutate(yr = year(yr)) %>% 
-  unique %>% 
-  group_by(StationCode, Longitude, Latitude) %>% 
-  summarise(n = n()) %>% 
-  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
-
-m3 <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma)
-
-leafsync::sync(m1, m2, m3, ncol = 1) 
-```
-
-## Mass emissions {.tabset .tabset-pills}
-
-### Map summary
+## Map summary
 
 Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
 
@@ -95,3 +59,78 @@ m3 <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F,
 
 leafsync::sync(m1, m2, m3, ncol = 1) 
 ```
+
+## Nitrogen analyses, SDMF05 {.tabset .tabset-pills}
+
+### Observed
+
+Observed time series for major nitrogen constituents.
+
+```{r, fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+thm <- theme_bw() + 
+  theme(
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    axis.title = element_blank(), 
+    legend.title = element_blank(), 
+    legend.position = 'bottom', 
+    panel.grid = element_blank()
+  )
+  
+nitdat <- medat %>% 
+  filter(StationCode %in% 'SDMF05') %>% 
+  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN')) %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen'
+    ), 
+    Detection = case_when(
+      Qualifier %in% '<' ~ 'below detection', 
+      T ~ 'within range'
+    ),
+    Year = year(Date), 
+    Month = month(Date, label = T)
+  )
+
+p1 <- ggplot(nitdat, aes(x = Date, y = Result)) + 
+  geom_line() + 
+  geom_point(aes(colour = Detection)) + 
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm + 
+  # scale_y_log10() + 
+  scale_colour_manual(values = c('tomato1', 'black')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L)', 
+    subtitle = 'SDMF05'
+  )
+
+p2 <- ggplot(nitdat, aes(x = factor(Year), y = Result, group = Year)) + 
+  geom_boxplot() + 
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm +
+  # scale_y_log10() + 
+  # scale_colour_manual(values = c('tomato1', 'black')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L) by year', 
+    subtitle = 'SDMF05'
+  )
+
+p3 <- ggplot(nitdat, aes(x = Month, y = Result, group = Month)) + 
+  geom_boxplot() + 
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm +
+  # scale_y_log10() + 
+  # scale_colour_manual(values = c('tomato1', 'black')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L) by month', 
+    subtitle = 'SDMF05'
+  )
+
+p1
+p2 
+p3
+```
+
+### Trends

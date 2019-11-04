@@ -33,6 +33,6 @@ medat <- me_dat %>%
   ) %>% 
   rename(StationCode = Station) %>% 
   inner_join(me_stat, by = c('StationCode', 'Watershed')) %>% 
-  select(StationCode, Watershed, Date, Parameter, Result, Units, Longitude, Latitude)
+  select(StationCode, Watershed, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
 
 save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
