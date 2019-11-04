@@ -1,7 +1,7 @@
 ---
 output: 
-  bookdown::html_document2:
-    code_folding: hide
+    html_document:
+        code_folding: hide
 ---
 
 # Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
@@ -94,7 +94,9 @@ nitdat <- medat %>%
     Month = month(Date, label = T)
   )
 
-p1 <- ggplot(nitdat, aes(x = Date, y = Result)) + 
+toplo <- nitdat
+
+p1 <- ggplot(toplo, aes(x = Date, y = Result)) + 
   geom_line() + 
   geom_point(aes(colour = Detection)) + 
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
@@ -106,7 +108,7 @@ p1 <- ggplot(nitdat, aes(x = Date, y = Result)) +
     subtitle = 'SDMF05'
   )
 
-p2 <- ggplot(nitdat, aes(x = factor(Year), y = Result, group = Year)) + 
+p2 <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) + 
   geom_boxplot() + 
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm +
@@ -117,7 +119,7 @@ p2 <- ggplot(nitdat, aes(x = factor(Year), y = Result, group = Year)) +
     subtitle = 'SDMF05'
   )
 
-p3 <- ggplot(nitdat, aes(x = Month, y = Result, group = Month)) + 
+p3 <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) + 
   geom_boxplot() + 
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm +
@@ -134,3 +136,88 @@ p3
 ```
 
 ### Trends
+
+```{r, fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+thm <- theme_bw() + 
+  theme(
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    axis.title = element_blank(), 
+    legend.title = element_blank(), 
+    legend.position = 'bottom', 
+    panel.grid = element_blank()
+  )
+
+toplo <- nitdat %>% 
+  group_by(Parameter, Year) %>% 
+  summarise(
+    confint = t.test(Result)$conf.int %>% range %>% diff,
+    confint = confint / 2, 
+    Result = mean(Result, na.rm = T), 
+  ) %>% 
+  group_by(Parameter) %>% 
+  mutate(
+    avg = mean(Result, na.rm = T),
+    dev = Result - avg
+  )
+
+p1 <- ggplot(toplo, aes(x = Year, y = dev, fill = dev)) + 
+  geom_bar(stat = 'identity', colour = 'grey') + 
+  # geom_errorbar(aes(ymin = dev - confint, ymax = dev + confint), width = 0) +
+  scale_fill_gradient2('', low = 'tomato1', mid = 'white', high = 'lightgreen', midpoint = 0) +
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm +
+  geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') + 
+  # scale_y_log10() + 
+  # scale_y_continuous('Density (fish/100ft)') +
+  geom_hline(aes(yintercept = 0)) + 
+  labs(
+    title = 'Deviation from annual averages by constuent (mg/L)', 
+    subtitle = 'SDMF05'
+  )
+
+p1
+
+win <- 12
+toplo <- nitdat %>%
+  select(Date, Parameter, Result) %>%
+  mutate(Date = floor_date(Date, unit = 'month')) %>% 
+  group_by(Date, Parameter) %>% 
+  summarise(Result = mean(Result, na.rm = T)) %>% 
+  # group_by(Parameter) %>% 
+  arrange(Parameter, Date) %>% 
+  group_by(Parameter) %>% 
+  mutate(
+    avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
+  ) %>% 
+  ungroup %>% 
+  mutate(
+    dev = Result - avg
+  )
+
+p1 <- ggplot(toplo, aes(x = Date, y = Result)) + 
+  geom_line() + 
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm + 
+  # scale_y_log10() + 
+  scale_colour_manual(values = c('tomato1', 'black')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L)', 
+    subtitle = 'SDMF05'
+  )
+
+p2 <- ggplot(toplo, aes(x = Date, y = avg)) + 
+  geom_line() + 
+  geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev)) + 
+  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  thm + 
+  # scale_y_log10() + 
+  scale_colour_manual(values = c('tomato1', 'black')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L), deviations from annual average', 
+    subtitle = 'SDMF05'
+  )
+
+p1
+p2
+```
