@@ -214,10 +214,10 @@ p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
   # scale_y_log10() + 
   scale_colour_manual(values = c('tomato1', 'black')) + 
   labs(
-    title = 'Observed nitrogen (mg/L), deviations from annual average', 
-    subtitle = 'SDMF05'
+    title = 'Deviations from annual average', 
+    subtitle = 'SDMF05', 
+    y = NULL
   )
 
-p1
-p2
+p1 + p2 + plot_layout(ncol = 2)
 ```
