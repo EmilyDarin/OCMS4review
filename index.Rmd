@@ -2,6 +2,7 @@
 output: 
     html_document:
         code_folding: hide
+        css: styles.css
 ---
 
 # Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
@@ -17,12 +18,20 @@ library(leafsync)
 library(viridisLite)
 library(lubridate)
 library(patchwork)
+library(stargazer)
+library(EnvStats)
+library(shiny)
+library(kableExtra)
+
+
+mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
 mapviewOptions(leafletHeight = 300)
 
 prj <- 4326 # wgs84
 
-data(dwdat)
+source('R/funcs.R')
+
 data(medat)
 ```
 
@@ -36,7 +45,7 @@ tomap <- medat %>%
   unique %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
-m1 <- mapview(tomap, zcol = 'Watershed', layer.name = 'Watershed location', homebutton = F)
+m1a <- mapview(tomap, zcol = 'Watershed', layer.name = 'Watershed location', homebutton = F, map.types = mptyps)
 
 tomap <- medat %>% 
   select(StationCode, Parameter, Longitude, Latitude) %>% 
@@ -45,7 +54,7 @@ tomap <- medat %>%
   summarise(n = n()) %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
-m2 <- mapview(tomap, zcol = 'n', layer.name = 'Number of parameters', homebutton = F, col.regions = magma)
+m2a <- mapview(tomap, zcol = 'n', layer.name = 'Number of parameters', homebutton = F, col.regions = magma, map.types = mptyps)
 
 tomap <- medat %>% 
   select(StationCode, yr = Date, Longitude, Latitude) %>% 
@@ -55,9 +64,9 @@ tomap <- medat %>%
   summarise(n = n()) %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
-m3 <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma)
+m3a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma, map.types = mptyps)
 
-leafsync::sync(m1, m2, m3, ncol = 1) 
+leafsync::sync(m1a, m2a, m3a, ncol = 1) 
 ```
 
 ## Nitrogen analyses, SDMF05 {.tabset .tabset-pills}
@@ -159,12 +168,17 @@ toplo <- nitdat %>%
   mutate(
     avg = mean(Result, na.rm = T),
     dev = Result - avg
+  ) %>% 
+  ungroup %>% 
+  mutate(
+    avg = round(avg, 2), 
+    Parameter = paste0(Parameter, ' (', avg, ')')
   )
 
 p1 <- ggplot(toplo, aes(x = Year, y = dev, fill = dev)) + 
   geom_bar(stat = 'identity', colour = 'grey') + 
   # geom_errorbar(aes(ymin = dev - confint, ymax = dev + confint), width = 0) +
-  scale_fill_gradient2('', low = 'tomato1', mid = 'white', high = 'lightgreen', midpoint = 0) +
+  scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm +
   geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') + 
@@ -172,12 +186,40 @@ p1 <- ggplot(toplo, aes(x = Year, y = dev, fill = dev)) +
   # scale_y_continuous('Density (fish/100ft)') +
   geom_hline(aes(yintercept = 0)) + 
   labs(
-    title = 'Deviation from annual averages by constuent (mg/L)', 
-    subtitle = 'SDMF05'
+    title = 'Deviation from annual averages by constituent (mg/L)', 
+    subtitle = 'SDMF05, average in parentheses on y-axis'
   )
 
 p1
+```
 
+This table shows the regression results from the above plot.
+
+```{r, results='asis'}
+mods <- toplo %>% 
+  group_by(Parameter) %>% 
+  nest %>% 
+  mutate(
+    mod = purrr::map(data, function(x) lm(dev ~ Year, x))
+  ) %>% 
+  ungroup %>% 
+  mutate(
+    Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
+  )
+  
+stargazer(mods$mod, type = 'html',
+          covariate.labels = c('Year', 'Intercept'), 
+          column.labels = mods$Parameter, 
+          omit.stat = c('adj.rsq', 'ser'), 
+          column.sep.width = '10pt', 
+          dep.var.labels.include = F, 
+          digits = 2
+          ) 
+```
+
+The plots below show the observed time series (left) with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right).  
+
+```{r, fig.height = 6, fig.width = 7, out.width = '90%', fig.align = 'center'}
 win <- 12
 toplo <- nitdat %>%
   select(Date, Parameter, Result) %>%
@@ -200,19 +242,18 @@ p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm + 
   # scale_y_log10() + 
-  scale_colour_manual(values = c('tomato1', 'black')) + 
   labs(
     title = 'Observed nitrogen (mg/L)', 
     subtitle = 'SDMF05'
   )
 
 p2 <- ggplot(toplo, aes(x = Date, y = avg)) + 
-  geom_line() + 
-  geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev)) + 
+  geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) + 
+  geom_line(colour = 'black') + 
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm + 
   # scale_y_log10() + 
-  scale_colour_manual(values = c('tomato1', 'black')) + 
+  scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
   labs(
     title = 'Deviations from annual average', 
     subtitle = 'SDMF05', 
@@ -220,4 +261,160 @@ p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
   )
 
 p1 + p2 + plot_layout(ncol = 2)
+```
+
+Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+
+```{r}
+totabs1kn <- nitdat %>% 
+  group_by(Parameter, Year) %>% 
+  summarise(
+    Result = mean(Result, na.rm = T), 
+  ) %>%
+  group_by(Parameter) %>% 
+  mutate(
+    avg = mean(Result, na.rm = T),
+    dev = Result - avg
+  ) %>% 
+  nest %>% 
+  mutate(
+    res = purrr::map(data, function(x){
+      
+      knout <- kendallTrendTest(dev ~ Year, x)
+      outest <- round(knout$estimate, 2)
+      outpval <- p_ast(knout$p.value)
+      out <- c(outest, pval = outpval) %>% 
+        data.frame %>% 
+        t %>% 
+        data.frame %>% 
+        select(-intercept)
+      return(out)
+      
+    })
+
+  ) %>% 
+  select(-data) %>% 
+  unnest(res)
+
+HTML(knitr::kable(totabs1kn, format = 'html') %>% 
+    kable_styling(full_width = T, font_size = 14))
+```
+
+## Nitrogen analyses, all stations {.tabset .tabset-pills}
+
+```{r}
+allnitdat <- medat %>% 
+  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN')) %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia',
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen'
+    ), 
+    Year = year(Date), 
+    Month = month(Date, label = T)
+  ) %>% 
+  group_by(StationCode, Parameter, Year) %>% 
+  summarise(
+    Result = mean(Result, na.rm = T), 
+  ) %>%
+  group_by(StationCode, Parameter) %>% 
+  filter(n() == 10) %>% 
+  mutate(
+    avg = mean(Result, na.rm = T),
+    dev = Result - avg
+  ) %>% 
+  nest %>% 
+  mutate(
+    res = purrr::map(data, function(x){
+
+      knout <- kendallTrendTest(dev ~ Year, x)
+      outest <- round(knout$estimate, 2)
+      outpval <- p_ast(knout$p.value)
+      out <- c(outest, pval = outpval) %>% 
+        data.frame %>% 
+        t %>% 
+        data.frame %>% 
+        select(-intercept)
+      return(out)
+      
+    })
+
+  ) %>% 
+  select(-data) %>% 
+  unnest(res) %>% 
+  mutate(
+    tau = as.numeric(as.character(tau)), 
+    slope = as.numeric(as.character(tau)),
+    trend = ifelse(tau < 0, 'dec', 'inc')
+  )
+```
+
+Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+
+The maps show the value for tau (direction of trend) for a Kendall test of nitrogen changes for stations with ten years of data, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between the three nitrogen constituents (ammonia left, nitrate/nitrite middle, total Kjeldahl nitrogen right).  The table shows the detailed results from the map.
+
+```{r}
+locs <- medat %>% 
+  select(StationCode, Longitude, Latitude) %>% 
+  unique
+
+tomap <- allnitdat %>% 
+  left_join(locs, by = 'StationCode') %>% 
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+
+ # point colors
+cols <- tomap %>% 
+  mutate(
+    cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
+    cols = as.character(cols)
+  ) %>% 
+  pull(cols)
+
+# size values
+cexv <- tomap %>% 
+  pull(tau) %>% 
+  abs %>% 
+  scales::rescale(to = c(2, 15))
+
+# hover pt labels
+labs <- paste(tomap$SiteID, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
+
+mapviewOptions(leafletHeight = 400)
+
+m1sel <- 'Ammonia'
+m1map <- tomap %>% filter(Parameter %in% m1sel)
+m1cexv <- cexv[tomap$Parameter %in% m1sel]
+m1labs <- labs[tomap$Parameter %in% m1sel]
+m1cols <- cols[tomap$Parameter %in% m1sel]
+m1b <- mapview(m1map, zcol = 'tau', cex = m1cexv, label = m1labs, col.regions = m1cols, legend = F, layer.name = m1sel, map.types = mptyps)
+
+m2sel <- 'Nitrate, Nitrite'
+m2map <- tomap %>% filter(Parameter %in% m2sel)
+m2cexv <- cexv[tomap$Parameter %in% m2sel]
+m2labs <- labs[tomap$Parameter %in% m2sel]
+m2cols <- cols[tomap$Parameter %in% m2sel]
+m2b <- mapview(m2map, zcol = 'tau', cex = m2cexv, label = m2labs, col.regions = m2cols, legend = F, layer.name = m2sel, map.types = mptyps)
+
+m3sel <- 'Total Kjeldahl Nitrogen'
+m3map <- tomap %>% filter(Parameter %in% m3sel)
+m3cexv <- cexv[tomap$Parameter %in% m3sel]
+m3labs <- labs[tomap$Parameter %in% m3sel]
+m3cols <- cols[tomap$Parameter %in% m3sel]
+m3b <- mapview(m3map, zcol = 'tau', cex = m3cexv, label = m3labs, col.regions = m3cols, legend = F, layer.name = m3sel, map.types = mptyps)
+
+leafsync::sync(m1b, m2b, m3b, ncol = 3) 
+```
+
+```{r}
+totab <- allnitdat %>% 
+  ungroup %>% 
+  arrange(Parameter, StationCode) %>% 
+  mutate(
+    Parameter = ifelse(duplicated(Parameter), '', Parameter)
+  ) %>% 
+  select(Parameter, StationCode, everything())
+
+HTML(knitr::kable(totab, format = 'html') %>% 
+    kable_styling(full_width = T, font_size = 14))
 ```
