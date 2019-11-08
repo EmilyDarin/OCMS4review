@@ -283,7 +283,8 @@ totabs1kn <- nitdat %>%
       knout <- kendallTrendTest(dev ~ Year, x)
       outest <- round(knout$estimate, 2)
       outpval <- p_ast(knout$p.value)
-      out <- c(outest, pval = outpval) %>% 
+      nval <- nrow(na.omit(x))
+      out <- c(n = nval, outest, pval = outpval) %>% 
         data.frame %>% 
         t %>% 
         data.frame %>% 
@@ -331,7 +332,8 @@ allnitdat <- medat %>%
       knout <- kendallTrendTest(dev ~ Year, x)
       outest <- round(knout$estimate, 2)
       outpval <- p_ast(knout$p.value)
-      out <- c(outest, pval = outpval) %>% 
+      nval <- nrow(na.omit(x))
+      out <- c(n = nval, outest, pval = outpval) %>% 
         data.frame %>% 
         t %>% 
         data.frame %>% 
