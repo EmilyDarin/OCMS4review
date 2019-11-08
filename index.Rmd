@@ -279,7 +279,7 @@ totabs1kn <- nitdat %>%
   nest %>% 
   mutate(
     res = purrr::map(data, function(x){
-      
+ 
       knout <- kendallTrendTest(dev ~ Year, x)
       outest <- round(knout$estimate, 2)
       outpval <- p_ast(knout$p.value)
@@ -345,7 +345,7 @@ allnitdat <- medat %>%
   unnest(res) %>% 
   mutate(
     tau = as.numeric(as.character(tau)), 
-    slope = as.numeric(as.character(tau)),
+    slope = as.numeric(as.character(slope)),
     trend = ifelse(tau < 0, 'dec', 'inc')
   )
 ```
