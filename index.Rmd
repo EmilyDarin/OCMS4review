@@ -22,7 +22,7 @@ library(stargazer)
 library(EnvStats)
 library(shiny)
 library(kableExtra)
-
+library(mgcv)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -33,6 +33,7 @@ prj <- 4326 # wgs84
 source('R/funcs.R')
 
 data(medat)
+data(pows)
 ```
 
 ## Map summary
@@ -299,6 +300,134 @@ totabs1kn <- nitdat %>%
 
 HTML(knitr::kable(totabs1kn, format = 'html') %>% 
     kable_styling(full_width = T, font_size = 14))
+```
+
+### Power analyses
+
+A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.   
+
+The observed time series for nitrate/nitrite at SDMF05 is shown below.  The power analyses are specific to the characteristics of nitrogen at this station. 
+
+```{r fig.height = 3, fig.width = 4, out.width = '50%', fig.align = 'center'}
+thm <- theme_bw() + 
+  theme(
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    legend.position = 'bottom', 
+    panel.grid = element_blank()
+  )
+  
+powdat <- medat %>% 
+  filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
+  filter(StationCode %in% 'SDMF05') %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
+    ), 
+    Year = year(Date), 
+    Season = yday(Date),
+    yrstrt = Year - min(Year)
+  )
+
+ggplot(powdat, aes(x = Date, y = Result)) + 
+  geom_line() + 
+  thm + 
+  scale_y_log10() +
+  labs(
+    title = 'Observed time series', 
+    subtitle = 'SDMF05', 
+    x = NULL, 
+    y = 'Nitrate, Nitrite (mg/L)'
+  )
+```
+
+This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (10).  As such, increasing power is observed with stronger trends and higher sampling densities. 
+
+```{r fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+scns <- crossing(
+  chg = seq(0.1, 0.9, length = 2),
+  eff = seq(0.1, 1, length = 2)
+  ) %>% 
+  group_by(chg, eff) %>% 
+  mutate(
+    simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 10)), 
+    sigs = purrr::map(simdat, function(x){
+      
+      x <- x %>% 
+        group_by(sims) %>% 
+        nest %>% 
+        mutate(
+          pval = purrr::map(data, ~kendallSeasonalTrendTest(exp(simrand) ~ Month + Year, data = .x)$p.value[2]),
+          sig = case_when(
+            pval < 0.05 ~ 'sig', 
+            pval >= 0.05 ~ 'nonsig'
+          )
+        ) %>% 
+        ungroup %>% 
+        select(sims, sig)
+      
+      return(x)
+ 
+    })
+  ) 
+
+simdat <- scns %>% 
+  select(-sigs) %>% 
+  unnest(simdat)
+
+sigs <- scns %>% 
+  select(-simdat) %>% 
+  unnest(sigs)
+
+toplo <- simdat %>% 
+  left_join(sigs, by = c('chg', 'eff', 'sims')) %>% 
+  group_by(chg, eff) %>% 
+  nest %>% 
+  mutate(
+    pow = purrr::map(data, powfun)
+  ) %>% 
+  unnest(c(data, pow)) %>% 
+  ungroup %>% 
+  mutate(
+    chg = paste('change', chg),
+    eff = paste('effort', eff), 
+    pow = paste('power', pow)
+  ) %>% 
+  unite('grp', chg, eff, pow, sep = ', ')
+
+p <- ggplot(toplo, aes(x = Date, y = simrand, group = sims, col = sig)) + 
+  geom_line(alpha = 0.2) + 
+  geom_point(size = 0.2) +
+  facet_wrap(~ grp, ncol = 2) +
+  thm + 
+  # scale_y_log10() + 
+  scale_colour_manual(values = c('black', 'tomato1')) + 
+  labs(
+    title = 'Observed nitrogen (mg/L)', 
+    subtitle = 'SDMF05, ten simulations per scenario', 
+    y = 'log-simulated Nitrate, Nitrite (mg/L)',
+    x = NULL
+  )
+
+p
+```
+
+This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from th example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual. 
+
+```{r fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+p <- ggplot(pows, aes(x = eff, y = pow, colour = chg, group = chg)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_colour_gradientn('Magnitude of trend change', colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
+  thm + 
+  labs(
+    y = 'Power', 
+    title = 'Power estimates for SDMF05', 
+    subtitle = 'Trend lines show power for varying sample effort and trend magnitude', 
+    x = 'Relative sample effort'
+  )
+
+p
 ```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
