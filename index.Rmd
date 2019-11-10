@@ -34,6 +34,7 @@ source('R/funcs.R')
 
 data(medat)
 data(pows)
+data(thrs)
 ```
 
 ## Map summary
@@ -304,7 +305,7 @@ HTML(knitr::kable(totabs1kn, format = 'html') %>%
 
 ### Power analyses
 
-A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.   
+A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every 19-20 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.   
 
 The observed time series for nitrate/nitrite at SDMF05 is shown below.  The power analyses are specific to the characteristics of nitrogen at this station. 
 
@@ -341,9 +342,9 @@ ggplot(powdat, aes(x = Date, y = Result)) +
   )
 ```
 
-This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (10).  As such, increasing power is observed with stronger trends and higher sampling densities. 
+This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (10).  As such, increasing power is observed with stronger trends and higher sampling densities. 
 
-```{r fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 scns <- crossing(
   chg = seq(0.1, 0.9, length = 2),
   eff = seq(0.1, 1, length = 2)
@@ -391,17 +392,21 @@ toplo <- simdat %>%
   mutate(
     chg = paste('change', chg),
     eff = paste('effort', eff), 
-    pow = paste('power', pow)
+    pow = paste('power', pow), 
+    sig = case_when(
+      sig == 'nonsig' ~ 'Non-significant', 
+      sig == 'sig' ~ 'Significant'
+    )
   ) %>% 
   unite('grp', chg, eff, pow, sep = ', ')
 
-p <- ggplot(toplo, aes(x = Date, y = simrand, group = sims, col = sig)) + 
+p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) + 
   geom_line(alpha = 0.2) + 
   geom_point(size = 0.2) +
   facet_wrap(~ grp, ncol = 2) +
   thm + 
-  # scale_y_log10() + 
-  scale_colour_manual(values = c('black', 'tomato1')) + 
+  scale_y_log10() +
+  scale_colour_manual('', values = c('black', 'tomato1')) + 
   labs(
     title = 'Observed nitrogen (mg/L)', 
     subtitle = 'SDMF05, ten simulations per scenario', 
@@ -412,21 +417,104 @@ p <- ggplot(toplo, aes(x = Date, y = simrand, group = sims, col = sig)) +
 p
 ```
 
-This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from th example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual. 
+This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual. 
 
-```{r fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
+```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'}
 p <- ggplot(pows, aes(x = eff, y = pow, colour = chg, group = chg)) + 
   geom_line() + 
   geom_point() + 
-  scale_colour_gradientn('Magnitude of trend change', colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
+  scale_colour_viridis_c('Magnitude of trend change (%)') + #, colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
   thm + 
   labs(
     y = 'Power', 
     title = 'Power estimates for SDMF05', 
-    subtitle = 'Trend lines show power for varying sample effort and trend magnitude', 
+    subtitle = 'Lines show power for varying sample effort and trend magnitude', 
     x = 'Relative sample effort'
   )
 
+p
+```
+
+An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 100 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 100 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 20 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 20 mg/L at 100\% sample effort.  An observance happens when at least one observation is above the threshold for the time series. The power is defined by the number of time series within which the exceedance was observed (red) divided by the total number of simulations (n = 10 for each). Increasing power is observed with lower exceedance thresholds and more frequent sampling.
+
+```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
+scns <- crossing(
+    thr = seq(20, 100, length = 2),
+    eff = seq(0.1, 1, length = 2)
+  ) %>% 
+  group_by(thr, eff) %>% 
+  mutate(
+    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 10)), 
+    simdat = purrr::pmap(list(thr, simdat), function(thr, simdat){
+ 
+      x <- simdat %>% 
+        group_by(sims) %>% 
+        mutate(
+          abv = any(exp(simrand) > thr)
+        )
+      
+      return(x)
+      
+    })
+  ) 
+
+toplo <- scns %>% 
+  mutate(
+    pow = purrr::pmap(list(simdat, thr), function(simdat, thr) thrfun(simdat, thr))
+  ) %>% 
+  unnest(c(simdat, pow)) %>% 
+  ungroup %>% 
+  mutate(
+    thr = paste('exceedance', thr),
+    eff = paste('effort', eff), 
+    pow = paste('power', pow), 
+    abv = case_when(
+      abv ~ 'Detected in time series', 
+      !abv ~ 'Not detected in time series'
+    )
+  ) %>% 
+  unite('grp', thr, eff, pow, sep = ', ', remove = F) %>% 
+  mutate(
+    thr = gsub('^exceedance\\s', '', thr) %>% as.numeric,
+    val = case_when(
+      exp(simrand) > thr ~ 'Value above',
+      exp(simrand) <= thr ~'Value below'
+    )
+  )
+
+p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = abv)) + 
+  geom_line(alpha = 0.2) + 
+  geom_point(size = 0.5, aes(shape = val)) +
+  geom_hline(aes(yintercept = thr), linetype = 'dashed') +
+  facet_wrap(~ grp, ncol = 2) +
+  thm + 
+  scale_y_log10() +
+  scale_colour_manual(NULL, values = c('tomato1', 'black')) + 
+  scale_shape_manual(NULL, values = c(24, 25)) + 
+  labs(
+    title = 'Observed nitrogen (mg/L)', 
+    subtitle = 'SDMF05, ten simulations per scenario', 
+    y = 'log-simulated Nitrate, Nitrite (mg/L)',
+    x = NULL
+  )
+
+p
+```
+
+This plot shows a summary of power for several sampling efforts and exceedance thresholds. Power is based on 10000 simulations for each scenario (differing from the example above). Power is lower for higher exceedance values and less frequent sampling, wheras power increases with lower exceedance values and higher sampling. 
+
+```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'}
+p <- ggplot(thrs, aes(x = eff, y = pow, colour = thr, group = thr)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_colour_viridis_c('Exceedance value to detect (mg/L)') +#, colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
+  thm + 
+  labs(
+    y = 'Power', 
+    title = 'Power estimates for SDMF05', 
+    subtitle = 'Lines show power for detecting at least one obs. > exceedance', 
+    x = 'Relative sample effort'
+  )
 p
 ```
 

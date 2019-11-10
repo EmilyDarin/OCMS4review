@@ -66,7 +66,7 @@ powdat <- medat %>%
 #   geom_line(data = powdat, aes(x= Date, y = log(Result), col = 'red'))
 
 scns <- crossing(
-  chg = seq(0.1, 0.5, length = 20),
+  chg = seq(0.1, 0.5, length = 10),
   eff = seq(0.1, 1,length = 9)
 )
 
@@ -102,4 +102,57 @@ pows <- scns %>%
 
 save(pows,file = here::here('data', 'pows.RData'), compress = 'xz')
 
+# power analysis for threshold values ------------------------------------
 
+data(medat)
+
+# data to eval
+powdat <- medat %>% 
+  filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
+  filter(StationCode %in% 'SDMF05') %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
+    ), 
+    Year = year(Date), 
+    Season = yday(Date),
+    yrstrt = Year - min(Year)
+  )
+
+# grid scenarios to eval
+scns <- crossing(
+  thr = seq(1, 100, length = 20),
+  eff = seq(0.1, 1,length = 20)
+)
+
+# setup parallel backend
+cl <- makeCluster(ncores)
+ncores <- detectCores() - 1 
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 4 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv', 'EnvStats')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  thr <- scns[i, ][['thr']]
+  eff <- scns[i,][['eff']]
+  
+  thrdat <- thrvals(powdat, eff = eff, sims = 10000)
+  thrfun(thrdat, thr = thr)
+  
+}
+
+# combine results with scns
+thrs <- scns %>% 
+  mutate(
+    pow = unlist(res)
+  )
+
+save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')

@@ -36,7 +36,7 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   # ntot is total obs to estimate
   # tot is vector of values to estimate
   # N is the result
-  No <- 2.63
+  No <- 1.5
   a <- -1 * chg * No / simeff
   tot <- 1:simeff
   N <- No + tot * a - a
@@ -77,6 +77,54 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   
 }
 
+# simulate time series same as input with random residual component
+# eff is sample effort as proportion from input data
+# sims is numer of time series to simulate
+thrvals <- function(powdat, eff = 1, sims = 100){
+  
+  # total obs, simulation effort
+  ntot <- nrow(powdat)
+  simeff <- round(ntot * eff, 0)
+  
+  # model to estimate variance components
+  modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
+  
+  # total variation is the sum of annual, seasonal, and residual variation
+  resdvar <- resid(modin) %>% var
+  
+  # base simulation to add to total annual change, scaled by desired effort
+  # seasonal component from gam plus rnorm terms for variance stochasticity
+  dtrng <- range(powdat$Date)
+  basedts <- seq.Date(dtrng[1], dtrng[2], length.out = simeff)
+  basedts <- data.frame(
+    Date = basedts, 
+    Year = year(basedts), 
+    Season = yday(basedts), 
+    Month = month(basedts)
+  )
+  
+  # seasonal component from model
+  predcmp <- predict(modin, newdata = basedts) %>% 
+    as.numeric
+  
+  # simdat
+  out <- basedts %>% 
+    mutate(
+      predcmp = predcmp
+    ) %>% 
+    crossing(
+      sims = 1:sims
+    ) %>% 
+    mutate(
+      simresd = rnorm(simeff * sims, 0, resdvar),
+      simrand = predcmp + simresd
+    ) %>% 
+    arrange(sims, Date)
+  
+  return(out)
+  
+}
+
 # get power estimates for seasonal kendall using output form simvals function
 powfun <- function(simdat, alpha = 0.05){
   
@@ -87,6 +135,21 @@ powfun <- function(simdat, alpha = 0.05){
     )
   
   pow <- sum(powest$pval < alpha) / nrow(powest)
+  
+  return(pow)
+  
+}
+
+# get likelihood of observing a value above threshold
+thrfun <- function(simdat, thr = 5){
+
+  threst <- simdat %>% 
+    group_by(sims) %>% 
+    summarise(
+      abv = any(exp(simrand) > thr)
+    )
+  
+  pow <- sum(threst$abv) / nrow(threst)
   
   return(pow)
   
