@@ -37,7 +37,9 @@ data(pows)
 data(thrs)
 ```
 
-## Map summary
+## Inventory {.tabset .tabset-pills}
+
+### Maps
 
 Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
 
@@ -69,6 +71,42 @@ tomap <- medat %>%
 m3a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma, map.types = mptyps)
 
 leafsync::sync(m1a, m2a, m3a, ncol = 1) 
+```
+
+### Nutrients, tabular
+
+```{r}
+sums <- medat %>% 
+  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')) %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus'
+    )
+  ) %>% 
+  count(Parameter, StationCode) %>% 
+  bind_rows(group_by(., Parameter) %>%
+              summarise(n=sum(n)) %>%
+              mutate(StationCode='Total')) %>%
+  bind_rows(group_by(., StationCode) %>%
+              summarise(n=sum(n)) %>%
+              mutate(Parameter='Total')) %>%
+  spread(Parameter,n,fill=0) %>% 
+  select(StationCode, Ammonia, `Nitrate, Nitrite`, Orthophosphate, `Total Kjeldahl Nitrogen`, `Total Phosphorus`, Total)
+
+alltot <- sums %>% 
+  filter(StationCode != 'Total')
+coltot <- sums %>% 
+  filter(StationCode == 'Total')
+
+totab <- bind_rows(alltot, coltot)
+      
+
+HTML(knitr::kable(totab, format = 'html') %>% 
+    kable_styling(full_width = T, font_size = 14))
 ```
 
 ## Nitrogen analyses, SDMF05 {.tabset .tabset-pills}
@@ -347,8 +385,8 @@ This plot shows 100 simulated time series of nitrogen trends that are based on v
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 set.seed(1234)
 scns <- crossing(
-  chg = seq(0.2, 0.9, length = 2),
-  eff = seq(0.2, 1, length = 2)
+  chg = seq(0.3, 1, length = 2),
+  eff = seq(0.3, 1, length = 2)
   ) %>% 
   group_by(chg, eff) %>% 
   mutate(
@@ -407,8 +445,8 @@ toplo <- simdat %>%
   unite('grp', chg, eff, pow, sep = ', ')
 
 p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) + 
-  geom_line(alpha = 0.2) + 
   geom_point(size = 0.2) +
+  geom_line(alpha = 0.2) + 
   facet_wrap(~ grp, ncol = 2) +
   thm + 
   scale_y_log10() +
