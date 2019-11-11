@@ -1,2 +1,2 @@
-103 of 400 
-Time difference of 11.60953 hours
+400 of 400 
+Time difference of 7.905894 mins

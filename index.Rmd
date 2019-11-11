@@ -327,7 +327,7 @@ powdat <- medat %>%
     ), 
     Year = year(Date), 
     Season = yday(Date),
-    yrstrt = Year - min(Year)
+    dectime = decimal_date(Date)
   )
 
 ggplot(powdat, aes(x = Date, y = Result)) + 
@@ -342,7 +342,7 @@ ggplot(powdat, aes(x = Date, y = Result)) +
   )
 ```
 
-This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. 
+This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. 
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 set.seed(1234)
@@ -354,12 +354,17 @@ scns <- crossing(
   mutate(
     simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)), 
     sigs = purrr::map(simdat, function(x){
-      
+
       x <- x %>% 
         group_by(sims) %>% 
         nest %>% 
         mutate(
-          pval = purrr::map(data, ~kendallSeasonalTrendTest(exp(simrand) ~ Month + Year, data = .x)$p.value[2]),
+          pval = purrr::map(data, function(x){
+            
+            mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic
+            pf(mod[1], mod[2], mod[3], lower.tail = F)
+          
+          }),
           sig = case_when(
             pval < 0.05 ~ 'sig', 
             pval >= 0.05 ~ 'nonsig'

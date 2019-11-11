@@ -21,6 +21,13 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   ntot <- nrow(powdat)
   simeff <- round(ntot * eff, 0)
   
+  # add year, season
+  powdat <- powdat %>%
+    mutate(
+      Year = year(Date), 
+      Season = yday(Date)
+    )
+    
   # model to estimate variance components
   modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
 
@@ -49,7 +56,8 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
     Date = basedts, 
     Year = year(basedts), 
     Season = yday(basedts), 
-    Month = month(basedts)
+    Month = month(basedts),
+    dectime = decimal_date(basedts)
   )
   
   # seasonal component from model
@@ -86,6 +94,13 @@ thrvals <- function(powdat, eff = 1, sims = 100){
   ntot <- nrow(powdat)
   simeff <- round(ntot * eff, 0)
   
+  # add year, season
+  powdat <- powdat %>%
+    mutate(
+      Year = year(Date), 
+      Season = yday(Date)
+    )
+  
   # model to estimate variance components
   modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
   
@@ -100,7 +115,8 @@ thrvals <- function(powdat, eff = 1, sims = 100){
     Date = basedts, 
     Year = year(basedts), 
     Season = yday(basedts), 
-    Month = month(basedts)
+    Month = month(basedts),
+    dectime = decimal_date(basedts)
   )
   
   # seasonal component from model
@@ -130,9 +146,17 @@ powfun <- function(simdat, alpha = 0.05){
   
   powest <- simdat %>% 
     group_by(sims) %>% 
-    summarise(
-      pval = kendallSeasonalTrendTest(exp(simrand) ~ Month + Year)$p.value[2]
-    )
+    nest %>% 
+    mutate(
+      pval = purrr::map(data, function(x){
+        
+        mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic
+        pf(mod[1], mod[2], mod[3], lower.tail = F)
+        
+      }),
+    ) %>% 
+    select(-data) %>% 
+    unnest(pval)
   
   pow <- sum(powest$pval < alpha) / nrow(powest)
   

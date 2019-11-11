@@ -51,13 +51,10 @@ powdat <- medat %>%
   mutate(
     Parameter = case_when(
       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
-    ), 
-    Year = year(Date), 
-    Season = yday(Date),
-    yrstrt = Year - min(Year)
+    )
   )
 
-# simdat <- simvals(powdat, chg = 0.2, eff = 1, sims = 100)
+# simdat <- simvals(powdat, chg = 0.5, eff = 1, sims = 1000)
 # 
 # powfun(simdat)
 # 
@@ -66,13 +63,13 @@ powdat <- medat %>%
 #   geom_line(data = powdat, aes(x= Date, y = log(Result), col = 'red'))
 
 scns <- crossing(
-  chg = seq(0.1, 0.5, length = 20),
+  chg = seq(0.1, 1, length = 20),
   eff = seq(0.1, 1,length = 20)
 )
 
 # setup parallel backend
-cl <- makeCluster(ncores)
 ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
 registerDoParallel(cl)
 strt <- Sys.time()
 
@@ -113,10 +110,7 @@ powdat <- medat %>%
   mutate(
     Parameter = case_when(
       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
-    ), 
-    Year = year(Date), 
-    Season = yday(Date),
-    yrstrt = Year - min(Year)
+    )
   )
 
 # grid scenarios to eval
@@ -126,8 +120,8 @@ scns <- crossing(
 )
 
 # setup parallel backend
-cl <- makeCluster(ncores)
 ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
 registerDoParallel(cl)
 strt <- Sys.time()
 
