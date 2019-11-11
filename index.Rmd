@@ -483,42 +483,22 @@ An alternative power analysis was conducted to identify the ability to observe a
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 set.seed(1234)
-scns <- crossing(
-    thr = seq(20, 100, length = 2),
-    eff = seq(0.1, 1, length = 2)
-  ) %>% 
+scns <- scns <- crossing(
+  thr = seq(1, 5, length = 2),
+  eff = seq(0.1, 1, length = 2)) %>% 
   group_by(thr, eff) %>% 
   mutate(
-    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20)), 
-    simdat = purrr::pmap(list(thr, simdat), function(thr, simdat){
- 
-      x <- simdat %>% 
-        group_by(sims) %>% 
-        mutate(
-          abv = any(exp(simrand) > thr)
-        )
-      
-      return(x)
-      
-    })
+    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
   ) 
 
 toplo <- scns %>% 
-  mutate(
-    pow = purrr::pmap(list(simdat, thr), function(simdat, thr) thrfun(simdat, thr))
-  ) %>% 
-  unnest(c(simdat, pow)) %>% 
+  unnest(simdat) %>% 
   ungroup %>% 
   mutate(
     thr = paste('exceedance', thr),
-    eff = paste('effort', eff), 
-    pow = paste('power', pow), 
-    abv = case_when(
-      abv ~ 'Detected in time series', 
-      !abv ~ 'Not detected in time series'
-    )
+    eff = paste('effort', eff)
   ) %>% 
-  unite('grp', thr, eff, pow, sep = ', ', remove = F) %>% 
+  unite('grp', thr, eff, sep = ', ', remove = F) %>% 
   mutate(
     thr = gsub('^exceedance\\s', '', thr) %>% as.numeric,
     val = case_when(
@@ -527,9 +507,9 @@ toplo <- scns %>%
     )
   )
 
-p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = abv)) + 
+p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) + 
   geom_line(alpha = 0.2) + 
-  geom_point(size = 0.5, aes(shape = val)) +
+  geom_point(size = 0.5, aes(shape = val, col = val)) +
   geom_hline(aes(yintercept = thr), linetype = 'dashed') +
   facet_wrap(~ grp, nrow = 2) +
   thm + 
@@ -540,6 +520,46 @@ p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = abv)) +
     title = 'Observed nitrogen (mg/L)', 
     subtitle = 'SDMF05, twenty simulations per scenario', 
     y = 'log-simulated Nitrate, Nitrite (mg/L)',
+    x = NULL
+  )
+
+p
+```
+
+```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
+toplo <- scns %>% 
+  mutate(
+    yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) {
+      
+      out <- simdat %>% 
+        group_by(Year) %>% 
+        summarise(
+          yrpow = sum(simrand > log(thr)) / n()
+        )
+      
+      return(out)
+          
+    }), 
+    pow = purrr::map(yrspow, function(x) mean(x$yrpow))
+  ) %>% 
+  unnest(pow) %>% 
+  unnest(yrspow) %>% 
+  ungroup %>% 
+  mutate(
+    thr = paste('exceedance', thr),
+    eff = paste('effort', eff), 
+    pow = paste('avg. power', round(pow, 2))
+  ) %>% 
+  unite('grp', thr, eff, pow, sep = ', ', remove = F) 
+
+p <- ggplot(toplo, aes(x = factor(Year), y = yrpow)) + 
+  geom_bar(stat = 'identity') +
+  facet_wrap(~ grp, nrow = 2) +
+  thm + 
+  labs(
+    title = 'Power by year of exceeding threshold', 
+    subtitle = 'SDMF05, twenty simulations per scenario', 
+    y = 'Power',
     x = NULL
   )
 

@@ -115,7 +115,7 @@ powdat <- medat %>%
 
 # grid scenarios to eval
 scns <- crossing(
-  thr = seq(1, 100, length = 20),
+  thr = seq(0.1, 5, length = 20),
   eff = seq(0.1, 1,length = 20)
 )
 
