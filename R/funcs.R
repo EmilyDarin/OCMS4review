@@ -166,15 +166,24 @@ powfun <- function(simdat, alpha = 0.05){
 
 # get likelihood of observing a value above threshold
 thrfun <- function(simdat, thr = 5){
-browser()
-  threst <- simdat %>% 
-    group_by(sims, Year) %>% 
+
+  threst <- simdat %>%
+    mutate(simrand = exp(simrand)) %>%
+    group_by(sims) %>% 
     summarise(
-      yrpow = sum(simrand > log(thr)) / n()
+      aveval = mean(simrand),
+      minval = t.test(simrand)$conf.int[1],
+      maxval = t.test(simrand)$conf.int[2]
+    ) %>%
+    mutate(
+      sig = case_when(
+        maxval > thr ~ 'detected',
+        maxval < thr ~ 'not detected'
+      )
     )
 
-  pow <- t.test(threst$yrpow)
-  
+  pow <- sum(threst == 'detected') / nrow(threst)
+
   return(pow)
-  
+
 }

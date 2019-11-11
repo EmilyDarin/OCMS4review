@@ -1,2 +1,2 @@
-400 of 400 
-Time difference of 1.292745 hours
+100 of 100 
+Time difference of 18.23911 secs

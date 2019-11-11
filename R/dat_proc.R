@@ -115,8 +115,8 @@ powdat <- medat %>%
 
 # grid scenarios to eval
 scns <- crossing(
-  thr = seq(0.1, 5, length = 20),
-  eff = seq(0.1, 1,length = 20)
+  thr = seq(0.1, 10, length = 10),
+  eff = seq(0.1, 1,length = 10)
 )
 
 # setup parallel backend
@@ -138,7 +138,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
   thr <- scns[i, ][['thr']]
   eff <- scns[i,][['eff']]
   
-  thrdat <- thrvals(powdat, eff = eff, sims = 10000)
+  thrdat <- thrvals(powdat, eff = eff, sims = 1000)
   thrfun(thrdat, thr = thr)
   
 }

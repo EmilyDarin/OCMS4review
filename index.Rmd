@@ -479,7 +479,7 @@ p <- ggplot(pows, aes(x = eff, y = pow, colour = chg, group = chg)) +
 p
 ```
 
-An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 100 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 100 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 20 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 20 mg/L at 100\% sample effort.  An observance happens when at least one observation is above the threshold for the time series. The power is defined by the number of time series within which the exceedance was observed (red) divided by the total number of simulations (n = 20 for each). Increasing power is observed with lower exceedance thresholds and more frequent sampling.
+An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 5 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 5 mg/L at 100\% sample effort.  Observations above the threshold are shown in red. 
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 set.seed(1234)
@@ -526,62 +526,58 @@ p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) +
 p
 ```
 
+This plot shows the uncertainty associated with the average esimated concentration within each year.  The estimates served as a proxy for power given the sample effort and exceedance threshold. 
+
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 toplo <- scns %>% 
   mutate(
     yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) {
-      
+
       out <- simdat %>% 
+        mutate(simrand = exp(simrand)) %>% 
         group_by(Year) %>% 
         summarise(
-          yrpow = sum(simrand > log(thr)) / n()
+          aveval = mean(simrand),
+          minval = t.test(simrand)$conf.int[1],
+          maxval = t.test(simrand)$conf.int[2]
+        ) %>% 
+        mutate(sig = case_when(
+          maxval > thr ~ 'detected', 
+          maxval < thr ~ 'not detected'
+          )
         )
       
       return(out)
           
-    }), 
-    pow = purrr::map(yrspow, function(x) mean(x$yrpow))
+    })
   ) %>% 
-  unnest(pow) %>% 
   unnest(yrspow) %>% 
   ungroup %>% 
   mutate(
     thr = paste('exceedance', thr),
-    eff = paste('effort', eff), 
-    pow = paste('avg. power', round(pow, 2))
+    eff = paste('effort', eff)
   ) %>% 
-  unite('grp', thr, eff, pow, sep = ', ', remove = F) 
+  unite('grp', thr, eff, sep = ', ', remove = F) %>% 
+  mutate(thr = gsub('^exceedance\\s', '', thr) %>%  as.numeric)
 
-p <- ggplot(toplo, aes(x = factor(Year), y = yrpow)) + 
-  geom_bar(stat = 'identity') +
+p <- ggplot(toplo, aes(x = factor(Year), y = aveval)) + 
+  geom_bar(stat = 'identity', aes(fill = sig)) +
+  geom_errorbar(aes(ymin = minval, ymax = maxval, color = sig), width = 0) +
+  geom_hline(aes(yintercept = thr), linetype = 'dashed') +
+  scale_colour_manual(NULL, values = c('tomato1', 'black')) + 
+  scale_fill_manual(NULL, values = c('tomato1', 'black')) + 
   facet_wrap(~ grp, nrow = 2) +
   thm + 
   labs(
-    title = 'Power by year of exceeding threshold', 
+    title = 'Ability to detect exceedance by year', 
     subtitle = 'SDMF05, twenty simulations per scenario', 
-    y = 'Power',
+    y = 'Nitrogen concentration (mg/L)',
     x = NULL
   )
 
 p
 ```
 
-This plot shows a summary of power for several sampling efforts and exceedance thresholds. Power is based on 10000 simulations for each scenario (differing from the example above). Power is lower for higher exceedance values and less frequent sampling, wheras power increases with lower exceedance values and higher sampling. 
-
-```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'}
-p <- ggplot(thrs, aes(x = eff, y = pow, colour = thr, group = thr)) + 
-  geom_line() + 
-  geom_point() + 
-  scale_colour_viridis_c('Exceedance value to detect (mg/L)') +#, colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
-  thm + 
-  labs(
-    y = 'Power', 
-    title = 'Power estimates for SDMF05', 
-    subtitle = 'Lines show power for detecting at least one obs. > exceedance', 
-    x = 'Relative sample effort'
-  )
-p
-```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
 
