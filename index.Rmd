@@ -342,16 +342,17 @@ ggplot(powdat, aes(x = Date, y = Result)) +
   )
 ```
 
-This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (10).  As such, increasing power is observed with stronger trends and higher sampling densities. 
+This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a seasonal Kendall test.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. 
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
+set.seed(1234)
 scns <- crossing(
-  chg = seq(0.1, 0.9, length = 2),
-  eff = seq(0.1, 1, length = 2)
+  chg = seq(0.2, 0.9, length = 2),
+  eff = seq(0.2, 1, length = 2)
   ) %>% 
   group_by(chg, eff) %>% 
   mutate(
-    simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 10)), 
+    simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)), 
     sigs = purrr::map(simdat, function(x){
       
       x <- x %>% 
@@ -409,7 +410,7 @@ p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) +
   scale_colour_manual('', values = c('black', 'tomato1')) + 
   labs(
     title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05, ten simulations per scenario', 
+    subtitle = 'SDMF05, twenty simulations per scenario', 
     y = 'log-simulated Nitrate, Nitrite (mg/L)',
     x = NULL
   )
@@ -435,16 +436,17 @@ p <- ggplot(pows, aes(x = eff, y = pow, colour = chg, group = chg)) +
 p
 ```
 
-An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 100 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 100 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 20 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 20 mg/L at 100\% sample effort.  An observance happens when at least one observation is above the threshold for the time series. The power is defined by the number of time series within which the exceedance was observed (red) divided by the total number of simulations (n = 10 for each). Increasing power is observed with lower exceedance thresholds and more frequent sampling.
+An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 100 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 100 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 20 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 20 mg/L at 100\% sample effort.  An observance happens when at least one observation is above the threshold for the time series. The power is defined by the number of time series within which the exceedance was observed (red) divided by the total number of simulations (n = 20 for each). Increasing power is observed with lower exceedance thresholds and more frequent sampling.
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
+set.seed(1234)
 scns <- crossing(
     thr = seq(20, 100, length = 2),
     eff = seq(0.1, 1, length = 2)
   ) %>% 
   group_by(thr, eff) %>% 
   mutate(
-    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 10)), 
+    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20)), 
     simdat = purrr::pmap(list(thr, simdat), function(thr, simdat){
  
       x <- simdat %>% 
@@ -486,14 +488,14 @@ p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = abv)) +
   geom_line(alpha = 0.2) + 
   geom_point(size = 0.5, aes(shape = val)) +
   geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-  facet_wrap(~ grp, ncol = 2) +
+  facet_wrap(~ grp, nrow = 2) +
   thm + 
   scale_y_log10() +
   scale_colour_manual(NULL, values = c('tomato1', 'black')) + 
   scale_shape_manual(NULL, values = c(24, 25)) + 
   labs(
     title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05, ten simulations per scenario', 
+    subtitle = 'SDMF05, twenty simulations per scenario', 
     y = 'log-simulated Nitrate, Nitrite (mg/L)',
     x = NULL
   )

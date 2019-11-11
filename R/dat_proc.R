@@ -66,8 +66,8 @@ powdat <- medat %>%
 #   geom_line(data = powdat, aes(x= Date, y = log(Result), col = 'red'))
 
 scns <- crossing(
-  chg = seq(0.1, 0.5, length = 10),
-  eff = seq(0.1, 1,length = 9)
+  chg = seq(0.1, 0.5, length = 20),
+  eff = seq(0.1, 1,length = 20)
 )
 
 # setup parallel backend
@@ -89,7 +89,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
   chg <- scns[i, ][['chg']]
   eff <- scns[i,][['eff']]
   
-  simdat <- simvals(powdat, chg = chg, eff = eff, sims = 1000)
+  simdat <- simvals(powdat, chg = chg, eff = eff, sims = 10000)
   powfun(simdat)
   
 }
