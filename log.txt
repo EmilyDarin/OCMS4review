@@ -1,2 +1,2 @@
 100 of 100 
-Time difference of 18.23911 secs
+Time difference of 13.51482 secs

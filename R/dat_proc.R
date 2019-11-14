@@ -4,6 +4,7 @@ library(here)
 library(mgcv)
 library(doParallel)
 library(foreach)
+library(EnvStats)
 
 # dry weather monitoring --------------------------------------------------
 
@@ -74,7 +75,7 @@ registerDoParallel(cl)
 strt <- Sys.time()
 
 # process all stations ~ 15 min
-res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv', 'EnvStats')) %dopar% {
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')) %dopar% {
   
   sink('log.txt')
   cat(i, 'of', nrow(scns), '\n')
