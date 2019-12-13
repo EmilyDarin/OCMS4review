@@ -658,7 +658,7 @@ cexv <- tomap %>%
   scales::rescale(to = c(2, 15))
 
 # hover pt labels
-labs <- paste(tomap$SiteID, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
+labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
 
 mapviewOptions(leafletHeight = 400)
 
