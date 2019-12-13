@@ -491,8 +491,8 @@ An alternative power analysis was conducted to identify the ability to observe a
 
 ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
 set.seed(1234)
-scns <- scns <- crossing(
-  thr = seq(1, 5, length = 2),
+scns <- crossing(
+  thr = seq(1, 10, length = 2),
   eff = seq(0.1, 1, length = 2)) %>% 
   group_by(thr, eff) %>% 
   mutate(

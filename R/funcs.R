@@ -89,7 +89,7 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
 # eff is sample effort as proportion from input data
 # sims is numer of time series to simulate
 thrvals <- function(powdat, eff = 1, sims = 100){
-  
+
   # total obs, simulation effort
   ntot <- nrow(powdat)
   simeff <- round(ntot * eff, 0)
@@ -118,11 +118,13 @@ thrvals <- function(powdat, eff = 1, sims = 100){
     Month = month(basedts),
     dectime = decimal_date(basedts)
   )
-  
-  # seasonal component from model
-  predcmp <- predict(modin, newdata = basedts) %>% 
-    as.numeric
-  
+
+  # seasonal component from model, then add long-term average
+  ltave <- mean(log(powdat$Result), na.rm = T)
+  predcmp <- predict(modin, newdata = basedts, terms = 's(Season)', type = 'terms') %>% 
+    as.numeric %>% 
+    `+`(ltave)
+
   # simdat
   out <- basedts %>% 
     mutate(
