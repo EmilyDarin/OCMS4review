@@ -17,12 +17,13 @@ library(lubridate)
 library(leafsync)
 library(viridisLite)
 library(lubridate)
-library(patchwork)
+library(gridExtra)
 library(stargazer)
 library(EnvStats)
 library(shiny)
 library(kableExtra)
 library(mgcv)
+library(metR)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -292,6 +293,7 @@ p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
   geom_line(colour = 'black') + 
   facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
   thm + 
+  theme(legend.position = 'right') +
   # scale_y_log10() + 
   scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
   labs(
@@ -300,7 +302,9 @@ p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
     y = NULL
   )
 
-p1 + p2 + plot_layout(ncol = 2)
+grid.arrange(
+  arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
+)
 ```
 
 Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
@@ -464,17 +468,21 @@ p
 This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual. 
 
 ```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'}
-p <- ggplot(pows, aes(x = eff, y = pow, colour = chg, group = chg)) + 
-  geom_line() + 
-  geom_point() + 
-  scale_colour_viridis_c('Magnitude of trend change (%)') + #, colors = RColorBrewer::brewer.pal(9, 'Reds')[4:9]) +
+p <- ggplot(pows, aes(x = eff, y = chg, z = pow)) + 
+  # geom_tile() +
+  geom_contour(aes(colour = stat(level))) +
+  scale_colour_viridis_c('Power') +
   thm + 
+  theme(legend.position = 'none') +
+  # scale_x_continuous(limits = c(0, 1)) + 
+  # scale_y_continuous(limits = c(0, 1)) + 
+  geom_text_contour() + 
   labs(
-    y = 'Power', 
-    title = 'Power estimates for SDMF05', 
-    subtitle = 'Lines show power for varying sample effort and trend magnitude', 
+    y = 'Magnitude of trend change (%)',
+    title = 'Power estimates for SDMF05',
+    subtitle = 'Lines show power for varying sample effort and trend magnitude',
     x = 'Relative sample effort'
-  )
+  ) 
 
 p
 ```
