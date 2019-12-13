@@ -170,21 +170,14 @@ powfun <- function(simdat, alpha = 0.05){
 thrfun <- function(simdat, thr = 5){
 
   threst <- simdat %>%
+    .[[1]] %>% 
     mutate(simrand = exp(simrand)) %>%
     group_by(sims) %>% 
     summarise(
-      aveval = mean(simrand),
-      minval = t.test(simrand)$conf.int[1],
-      maxval = t.test(simrand)$conf.int[2]
-    ) %>%
-    mutate(
-      sig = case_when(
-        maxval > thr ~ 'detected',
-        maxval < thr ~ 'not detected'
-      )
-    )
+      pval = t.test(simrand, mu = thr, alternative = 'less')$p.value,
+    ) 
 
-  pow <- sum(threst == 'detected') / nrow(threst)
+  pow <- mean(threst$pval) #sum(threst$pval >= 0.05) / nrow(threst)
 
   return(pow)
 

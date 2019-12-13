@@ -3,6 +3,7 @@ output:
     html_document:
         code_folding: hide
         css: styles.css
+runtime: shiny
 ---
 
 # Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
@@ -110,7 +111,19 @@ HTML(knitr::kable(totab, format = 'html') %>%
     kable_styling(full_width = T, font_size = 14))
 ```
 
-## Nitrogen analyses, SDMF05 {.tabset .tabset-pills}
+## Nitrogen analyses, by station {.tabset .tabset-pills}
+
+```{r}
+column(12, 
+  column(4, 
+       selectInput('stasel', 'Select station:', choices = unique(pows$sta), selected = 'SDMF05')
+  ), 
+  column(4, 
+       selectInput('varsel', 'Select constituent:', choices = unique(pows$sta))
+  )
+)
+```
+
 
 ### Observed
 
