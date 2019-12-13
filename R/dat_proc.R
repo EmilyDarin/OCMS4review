@@ -47,13 +47,16 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 data(medat)
 
 powdat <- medat %>% 
-  filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
-  # filter(StationCode %in% 'SDMF05') %>% 
+  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')) %>% 
   mutate(
     Parameter = case_when(
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus'
     )
-  )
+  ) 
 
 # simdat <- simvals(powdat, chg = 0.5, eff = 1, sims = 1000)
 # 
@@ -65,6 +68,7 @@ powdat <- medat %>%
 
 scns <- crossing(
   sta = unique(powdat$StationCode),
+  par = unique(powdat$Parameter), 
   chg = seq(0.1, 1, length = 10),
   eff = seq(0.1, 1,length = 10)
   ) %>% 
@@ -87,13 +91,15 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
   source("R/funcs.R")
   
   sta <- scns[i, ][['sta']]
+  par <- scns[i, ][['par']]
   chg <- scns[i, ][['chg']]
-  eff <- scns[i,][['eff']]
+  eff <- scns[i, ][['eff']]
   
   topow <- powdat %>% 
-    filter(StationCode %in% sta)
+    filter(StationCode %in% sta) %>% 
+    filter(Parameter %in% par)
   
-  simdat <- simvals(topow, chg = chg, eff = eff, sims = 2000)
+  simdat <- simvals(topow, chg = chg, eff = eff, sims = 1000)
   powfun(simdat)
   
 }
