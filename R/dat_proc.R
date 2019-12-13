@@ -167,7 +167,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     ) %>% 
     group_by(eff, thr) %>% 
     mutate(
-      simdat = purrr::map(eff, ~thrvals(dat, eff, sims = 500))
+      simdat = purrr::map(eff, ~thrvals(dat, eff, sims = 1000))
     )
   
   # get power 
