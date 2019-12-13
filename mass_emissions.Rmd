@@ -34,9 +34,319 @@ prj <- 4326 # wgs84
 
 source('R/funcs.R')
 
+thm <- theme_bw(base_size = 16) + 
+  theme(
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    axis.title = element_blank(), 
+    legend.title = element_blank(), 
+    legend.position = 'bottom', 
+    panel.grid = element_blank()
+  )
+  
+
 data(medat)
 data(pows)
 data(thrs)
+```
+
+```{r reactives}
+stapardat <- reactive({
+  
+  # inputs
+  stasel <- input$stasel
+  varsel <- input$varsel
+
+  out <- medat %>% 
+    filter(StationCode %in% stasel) %>% 
+    mutate(
+      Parameter = case_when(
+        Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+        Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+        Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+        Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+        Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+        T ~ Parameter
+      ),
+      Detection = case_when(
+        Qualifier %in% '<' ~ 'below detection', 
+        T ~ 'within range'
+      ),
+      Year = year(Date), 
+      Month = month(Date, label = T)
+    ) %>%
+    filter(Parameter %in% varsel)
+    
+  return(out)
+  
+})
+
+# first observed plot
+obsp1 <- reactive({
+  
+  # inputs
+  stapardat <- stapardat()
+  stasel <- input$stasel
+  
+  toplo <- stapardat
+  ttl <- unique(toplo$Parameter)
+  
+  p <- ggplot(toplo, aes(x = Date, y = Result)) + 
+    geom_line() + 
+    geom_point(aes(colour = Detection)) + 
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm + 
+    # scale_y_log10() + 
+    scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      subtitle = stasel, 
+      title = ttl, 
+      ylab = 'Concentration (mg/L)'
+    )
+  
+  return(p)
+  
+})
+
+# second observed plot
+obsp2 <- reactive({
+  
+  # inputs
+  stapardat <- stapardat()
+  stasel <- input$stasel
+  
+  toplo <- stapardat
+  ttl <- unique(toplo$Parameter)
+
+  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) + 
+    geom_boxplot() + 
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm +
+    # scale_y_log10() + 
+    # scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      subtitle = stasel,
+      title = paste(ttl, 'by year'), 
+      ylab = 'Concentration (mg/L)'
+    )
+
+  return(p)
+  
+})
+
+# third observed plot
+obsp3 <- reactive({
+  
+  # inputs
+  stapardat <- stapardat()
+  stasel <- input$stasel
+  
+  toplo <- stapardat
+  ttl <- unique(toplo$Parameter)
+
+  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) + 
+    geom_boxplot() + 
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm +
+    # scale_y_log10() + 
+    # scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      subtitle = stasel, 
+      title = paste(ttl, 'by month'), 
+      ylab = 'Concentration (mg/L)'
+    )
+
+  return(p)
+  
+})
+
+# trend data
+trnddat <- reactive({
+  
+  # input
+  stapardat <- stapardat()
+  
+  out <- stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      confint = t.test(Result)$conf.int %>% range %>% diff,
+      confint = confint / 2,
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    ungroup %>%
+    mutate(
+      avg = round(avg, 2),
+      Parameter = paste0(Parameter, ' (', avg, ')')
+    )
+  
+  return(out)
+  
+})
+
+# first trend plot
+trndp1 <- reactive({
+  
+  # input
+  trnddat <- trnddat()
+  stasel <- input$stasel
+  
+  subttl <- paste0(stasel, ', average in parentheses on y-axis')
+  
+  p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
+    geom_bar(stat = 'identity', colour = 'grey') +
+    # geom_errorbar(aes(ymin = dev - confint, ymax = dev + confint), width = 0) +
+    scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm +
+    geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
+    # scale_y_log10() +
+    # scale_y_continuous('Density (fish/100ft)') +
+    geom_hline(aes(yintercept = 0)) +
+    labs(
+      title = 'Deviation from annual averages by constituent (mg/L)',
+      subtitle = subttl
+    ) + 
+    guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
+  
+  return(p)
+    
+})
+
+# first trend table
+trndtab1 <- reactive({
+  
+  # input
+  trnddat <- trnddat()
+  
+  mods <- trnddat %>%
+    group_by(Parameter) %>%
+    nest %>%
+    mutate(
+      mod = purrr::map(data, function(x) lm(dev ~ Year, x))
+    ) %>%
+    ungroup %>%
+    mutate(
+      Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
+    )
+  
+  out <- stargazer(mods$mod, type = 'html',
+            covariate.labels = c('Year', 'Intercept'),
+            column.labels = mods$Parameter,
+            omit.stat = c('adj.rsq', 'ser'),
+            column.sep.width = '10pt',
+            dep.var.labels.include = F,
+            digits = 2
+            ) %>% 
+    HTML()
+  
+  return(out)
+
+})
+
+# second trend plot
+trndp2 <- reactive({
+  
+  # input
+  stapardat <- stapardat()
+  stasel <- input$stasel
+  varsel <- input$varsel
+  
+  win <- 12
+  toplo <- stapardat %>%
+    select(Date, Parameter, Result) %>%
+    mutate(Date = floor_date(Date, unit = 'month')) %>%
+    group_by(Date, Parameter) %>%
+    summarise(Result = mean(Result, na.rm = T)) %>%
+    # group_by(Parameter) %>%
+    arrange(Parameter, Date) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
+    ) %>%
+    ungroup %>%
+    mutate(
+      dev = Result - avg
+    )
+
+  p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
+    geom_line() +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm +
+    # scale_y_log10() +
+    labs(
+      title = paste0('Observed ', varsel),
+      subtitle = stasel,
+      ylab = 'Concentration (mg/L)'
+    )
+
+  p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
+    geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) +
+    geom_line(colour = 'black') +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm +
+    theme(legend.position = 'right') +
+    # scale_y_log10() +
+    scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
+    labs(
+      title = 'Deviations from annual average',
+      subtitle = stasel,
+      ylab = NULL
+    )
+
+  grid.arrange(
+    arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
+  )
+  
+})
+
+# second trends table
+trndtab2 <- reactive({
+  
+  # input
+  stapardat <- stapardat()
+  
+  totabs1kn <- stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    nest %>%
+    mutate(
+      res = purrr::map(data, function(x){
+  
+        knout <- kendallTrendTest(dev ~ Year, x)
+        outest <- round(knout$estimate, 2)
+        outpval <- p_ast(knout$p.value)
+        nval <- nrow(na.omit(x))
+        out <- c(n = nval, outest, pval = outpval) %>%
+          data.frame %>%
+          t %>%
+          data.frame %>%
+          select(-intercept)
+        return(out)
+  
+      })
+  
+    ) %>%
+    select(-data) %>%
+    unnest(res)
+
+  out <- HTML(knitr::kable(totabs1kn, format = 'html') %>%
+    kable_styling(full_width = T, font_size = 14))
+  
+  return(out)
+  
+})
 ```
 
 ## Inventory {.tabset .tabset-pills}
@@ -119,603 +429,403 @@ column(12,
        selectInput('stasel', 'Select station:', choices = unique(pows$sta), selected = 'SDMF05')
   ), 
   column(4, 
-       selectInput('varsel', 'Select constituent:', choices = unique(pows$sta))
+       selectInput('varsel', 'Select constituent:', choices = unique(pows$par))
   )
 )
 ```
-
 
 ### Observed
 
 Observed time series for major nitrogen constituents.
 
-```{r, fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
-thm <- theme_bw() + 
-  theme(
-    strip.background = element_blank(), 
-    strip.placement = 'outside', 
-    axis.title = element_blank(), 
-    legend.title = element_blank(), 
-    legend.position = 'bottom', 
-    panel.grid = element_blank()
-  )
-  
-nitdat <- medat %>% 
-  filter(StationCode %in% 'SDMF05') %>% 
-  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN')) %>% 
-  mutate(
-    Parameter = case_when(
-      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
-      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen'
-    ), 
-    Detection = case_when(
-      Qualifier %in% '<' ~ 'below detection', 
-      T ~ 'within range'
-    ),
-    Year = year(Date), 
-    Month = month(Date, label = T)
-  )
-
-toplo <- nitdat
-
-p1 <- ggplot(toplo, aes(x = Date, y = Result)) + 
-  geom_line() + 
-  geom_point(aes(colour = Detection)) + 
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm + 
-  # scale_y_log10() + 
-  scale_colour_manual(values = c('tomato1', 'black')) + 
-  labs(
-    title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05'
-  )
-
-p2 <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) + 
-  geom_boxplot() + 
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm +
-  # scale_y_log10() + 
-  # scale_colour_manual(values = c('tomato1', 'black')) + 
-  labs(
-    title = 'Observed nitrogen (mg/L) by year', 
-    subtitle = 'SDMF05'
-  )
-
-p3 <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) + 
-  geom_boxplot() + 
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm +
-  # scale_y_log10() + 
-  # scale_colour_manual(values = c('tomato1', 'black')) + 
-  labs(
-    title = 'Observed nitrogen (mg/L) by month', 
-    subtitle = 'SDMF05'
-  )
-
-p1
-p2 
-p3
+```{r}
+renderPlot({obsp1()}, height = 350, width = 700)
+renderPlot({obsp2()}, height = 250, width = 700)
+renderPlot({obsp3()}, height = 250, width = 700)
 ```
 
 ### Trends
 
-```{r, fig.height = 5, fig.width = 6, out.width = '80%', fig.align = 'center'}
-thm <- theme_bw() + 
-  theme(
-    strip.background = element_blank(), 
-    strip.placement = 'outside', 
-    axis.title = element_blank(), 
-    legend.title = element_blank(), 
-    legend.position = 'bottom', 
-    panel.grid = element_blank()
-  )
-
-toplo <- nitdat %>% 
-  group_by(Parameter, Year) %>% 
-  summarise(
-    confint = t.test(Result)$conf.int %>% range %>% diff,
-    confint = confint / 2, 
-    Result = mean(Result, na.rm = T), 
-  ) %>% 
-  group_by(Parameter) %>% 
-  mutate(
-    avg = mean(Result, na.rm = T),
-    dev = Result - avg
-  ) %>% 
-  ungroup %>% 
-  mutate(
-    avg = round(avg, 2), 
-    Parameter = paste0(Parameter, ' (', avg, ')')
-  )
-
-p1 <- ggplot(toplo, aes(x = Year, y = dev, fill = dev)) + 
-  geom_bar(stat = 'identity', colour = 'grey') + 
-  # geom_errorbar(aes(ymin = dev - confint, ymax = dev + confint), width = 0) +
-  scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm +
-  geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') + 
-  # scale_y_log10() + 
-  # scale_y_continuous('Density (fish/100ft)') +
-  geom_hline(aes(yintercept = 0)) + 
-  labs(
-    title = 'Deviation from annual averages by constituent (mg/L)', 
-    subtitle = 'SDMF05, average in parentheses on y-axis'
-  )
-
-p1
+```{r}
+renderPlot({trndp1()}, height = 350, width = 900)
 ```
 
 This table shows the regression results from the above plot.
 
 ```{r, results='asis'}
-mods <- toplo %>% 
-  group_by(Parameter) %>% 
-  nest %>% 
-  mutate(
-    mod = purrr::map(data, function(x) lm(dev ~ Year, x))
-  ) %>% 
-  ungroup %>% 
-  mutate(
-    Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
-  )
-  
-stargazer(mods$mod, type = 'html',
-          covariate.labels = c('Year', 'Intercept'), 
-          column.labels = mods$Parameter, 
-          omit.stat = c('adj.rsq', 'ser'), 
-          column.sep.width = '10pt', 
-          dep.var.labels.include = F, 
-          digits = 2
-          ) 
+renderUI({trndtab1()})
 ```
 
-The plots below show the observed time series (left) with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right).  
+The plots below show the observed time series (left) with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right).
 
-```{r, fig.height = 6, fig.width = 7, out.width = '90%', fig.align = 'center'}
-win <- 12
-toplo <- nitdat %>%
-  select(Date, Parameter, Result) %>%
-  mutate(Date = floor_date(Date, unit = 'month')) %>% 
-  group_by(Date, Parameter) %>% 
-  summarise(Result = mean(Result, na.rm = T)) %>% 
-  # group_by(Parameter) %>% 
-  arrange(Parameter, Date) %>% 
-  group_by(Parameter) %>% 
-  mutate(
-    avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
-  ) %>% 
-  ungroup %>% 
-  mutate(
-    dev = Result - avg
-  )
-
-p1 <- ggplot(toplo, aes(x = Date, y = Result)) + 
-  geom_line() + 
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm + 
-  # scale_y_log10() + 
-  labs(
-    title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05'
-  )
-
-p2 <- ggplot(toplo, aes(x = Date, y = avg)) + 
-  geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) + 
-  geom_line(colour = 'black') + 
-  facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-  thm + 
-  theme(legend.position = 'right') +
-  # scale_y_log10() + 
-  scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-  labs(
-    title = 'Deviations from annual average', 
-    subtitle = 'SDMF05', 
-    y = NULL
-  )
-
-grid.arrange(
-  arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
-)
+```{r}
+renderPlot({trndp2()}, height = 350, width = 900)
 ```
 
 Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-```{r}
-totabs1kn <- nitdat %>% 
-  group_by(Parameter, Year) %>% 
-  summarise(
-    Result = mean(Result, na.rm = T), 
-  ) %>%
-  group_by(Parameter) %>% 
-  mutate(
-    avg = mean(Result, na.rm = T),
-    dev = Result - avg
-  ) %>% 
-  nest %>% 
-  mutate(
-    res = purrr::map(data, function(x){
- 
-      knout <- kendallTrendTest(dev ~ Year, x)
-      outest <- round(knout$estimate, 2)
-      outpval <- p_ast(knout$p.value)
-      nval <- nrow(na.omit(x))
-      out <- c(n = nval, outest, pval = outpval) %>% 
-        data.frame %>% 
-        t %>% 
-        data.frame %>% 
-        select(-intercept)
-      return(out)
-      
-    })
-
-  ) %>% 
-  select(-data) %>% 
-  unnest(res)
-
-HTML(knitr::kable(totabs1kn, format = 'html') %>% 
-    kable_styling(full_width = T, font_size = 14))
+```{r, results = 'asis'}
+renderUI({trndtab2()})
 ```
 
-### Power analyses
+<!-- ### Power analyses -->
 
-A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every ~14 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.   
+<!-- A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every ~14 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.    -->
 
-The observed time series for nitrate/nitrite at SDMF05 is shown below.  The power analyses are specific to the characteristics of nitrogen at this station. 
+<!-- The observed time series for nitrate/nitrite at SDMF05 is shown below.  The power analyses are specific to the characteristics of nitrogen at this station.  -->
 
-```{r fig.height = 3, fig.width = 4, out.width = '50%', fig.align = 'center'}
-thm <- theme_bw() + 
-  theme(
-    strip.background = element_blank(), 
-    strip.placement = 'outside', 
-    legend.position = 'bottom', 
-    panel.grid = element_blank()
-  )
-  
-powdat <- medat %>% 
-  filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
-  filter(StationCode %in% 'SDMF05') %>% 
-  mutate(
-    Parameter = case_when(
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
-    ), 
-    Year = year(Date), 
-    Season = yday(Date),
-    dectime = decimal_date(Date)
-  )
+<!-- ```{r fig.height = 3, fig.width = 4, out.width = '50%', fig.align = 'center'} -->
+<!-- thm <- theme_bw() +  -->
+<!--   theme( -->
+<!--     strip.background = element_blank(),  -->
+<!--     strip.placement = 'outside',  -->
+<!--     legend.position = 'bottom',  -->
+<!--     panel.grid = element_blank() -->
+<!--   ) -->
 
-ggplot(powdat, aes(x = Date, y = Result)) + 
-  geom_line() + 
-  thm + 
-  scale_y_log10() +
-  labs(
-    title = 'Observed time series', 
-    subtitle = 'SDMF05', 
-    x = NULL, 
-    y = 'Nitrate, Nitrite (mg/L)'
-  )
-```
+<!-- powdat <- medat %>%  -->
+<!--   filter(Parameter %in% c('NitrateNitriteNO3')) %>%  -->
+<!--   filter(StationCode %in% 'SDMF05') %>%  -->
+<!--   mutate( -->
+<!--     Parameter = case_when( -->
+<!--       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite' -->
+<!--     ),  -->
+<!--     Year = year(Date),  -->
+<!--     Season = yday(Date), -->
+<!--     dectime = decimal_date(Date) -->
+<!--   ) -->
 
-This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. 
+<!-- ggplot(powdat, aes(x = Date, y = Result)) +  -->
+<!--   geom_line() +  -->
+<!--   thm +  -->
+<!--   scale_y_log10() + -->
+<!--   labs( -->
+<!--     title = 'Observed time series',  -->
+<!--     subtitle = 'SDMF05',  -->
+<!--     x = NULL,  -->
+<!--     y = 'Nitrate, Nitrite (mg/L)' -->
+<!--   ) -->
+<!-- ``` -->
 
-```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
-set.seed(1234)
-scns <- crossing(
-  chg = seq(0.3, 1, length = 2),
-  eff = seq(0.3, 1, length = 2)
-  ) %>% 
-  group_by(chg, eff) %>% 
-  mutate(
-    simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)), 
-    sigs = purrr::map(simdat, function(x){
+<!-- This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities.  -->
 
-      x <- x %>% 
-        group_by(sims) %>% 
-        nest %>% 
-        mutate(
-          pval = purrr::map(data, function(x){
-            
-            mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic
-            pf(mod[1], mod[2], mod[3], lower.tail = F)
-          
-          }),
-          sig = case_when(
-            pval < 0.05 ~ 'sig', 
-            pval >= 0.05 ~ 'nonsig'
-          )
-        ) %>% 
-        ungroup %>% 
-        select(sims, sig)
-      
-      return(x)
- 
-    })
-  ) 
+<!-- ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'} -->
+<!-- set.seed(1234) -->
+<!-- scns <- crossing( -->
+<!--   chg = seq(0.3, 1, length = 2), -->
+<!--   eff = seq(0.3, 1, length = 2) -->
+<!--   ) %>%  -->
+<!--   group_by(chg, eff) %>%  -->
+<!--   mutate( -->
+<!--     simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)),  -->
+<!--     sigs = purrr::map(simdat, function(x){ -->
 
-simdat <- scns %>% 
-  select(-sigs) %>% 
-  unnest(simdat)
+<!--       x <- x %>%  -->
+<!--         group_by(sims) %>%  -->
+<!--         nest %>%  -->
+<!--         mutate( -->
+<!--           pval = purrr::map(data, function(x){ -->
 
-sigs <- scns %>% 
-  select(-simdat) %>% 
-  unnest(sigs)
+<!--             mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic -->
+<!--             pf(mod[1], mod[2], mod[3], lower.tail = F) -->
 
-toplo <- simdat %>% 
-  left_join(sigs, by = c('chg', 'eff', 'sims')) %>% 
-  group_by(chg, eff) %>% 
-  nest %>% 
-  mutate(
-    pow = purrr::map(data, powfun)
-  ) %>% 
-  unnest(c(data, pow)) %>% 
-  ungroup %>% 
-  mutate(
-    chg = paste('change', chg),
-    eff = paste('effort', eff), 
-    pow = paste('power', pow), 
-    sig = case_when(
-      sig == 'nonsig' ~ 'Non-significant', 
-      sig == 'sig' ~ 'Significant'
-    )
-  ) %>% 
-  unite('grp', chg, eff, pow, sep = ', ')
+<!--           }), -->
+<!--           sig = case_when( -->
+<!--             pval < 0.05 ~ 'sig',  -->
+<!--             pval >= 0.05 ~ 'nonsig' -->
+<!--           ) -->
+<!--         ) %>%  -->
+<!--         ungroup %>%  -->
+<!--         select(sims, sig) -->
 
-p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) + 
-  geom_point(size = 0.2) +
-  geom_line(alpha = 0.2) + 
-  facet_wrap(~ grp, ncol = 2) +
-  thm + 
-  scale_y_log10() +
-  scale_colour_manual('', values = c('black', 'tomato1')) + 
-  labs(
-    title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05, twenty simulations per scenario', 
-    y = 'log-simulated Nitrate, Nitrite (mg/L)',
-    x = NULL
-  )
+<!--       return(x) -->
 
-p
-```
+<!--     }) -->
+<!--   )  -->
 
-This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual. 
+<!-- simdat <- scns %>%  -->
+<!--   select(-sigs) %>%  -->
+<!--   unnest(simdat) -->
 
-```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'}
-p <- ggplot(pows, aes(x = eff, y = chg, z = pow)) + 
-  # geom_tile() +
-  geom_contour(aes(colour = stat(level))) +
-  scale_colour_viridis_c('Power') +
-  thm + 
-  theme(legend.position = 'none') +
-  # scale_x_continuous(limits = c(0, 1)) + 
-  # scale_y_continuous(limits = c(0, 1)) + 
-  geom_text_contour() + 
-  labs(
-    y = 'Magnitude of trend change (%)',
-    title = 'Power estimates for SDMF05',
-    subtitle = 'Lines show power for varying sample effort and trend magnitude',
-    x = 'Relative sample effort'
-  ) 
+<!-- sigs <- scns %>%  -->
+<!--   select(-simdat) %>%  -->
+<!--   unnest(sigs) -->
 
-p
-```
+<!-- toplo <- simdat %>%  -->
+<!--   left_join(sigs, by = c('chg', 'eff', 'sims')) %>%  -->
+<!--   group_by(chg, eff) %>%  -->
+<!--   nest %>%  -->
+<!--   mutate( -->
+<!--     pow = purrr::map(data, powfun) -->
+<!--   ) %>%  -->
+<!--   unnest(c(data, pow)) %>%  -->
+<!--   ungroup %>%  -->
+<!--   mutate( -->
+<!--     chg = paste('change', chg), -->
+<!--     eff = paste('effort', eff),  -->
+<!--     pow = paste('power', pow),  -->
+<!--     sig = case_when( -->
+<!--       sig == 'nonsig' ~ 'Non-significant',  -->
+<!--       sig == 'sig' ~ 'Significant' -->
+<!--     ) -->
+<!--   ) %>%  -->
+<!--   unite('grp', chg, eff, pow, sep = ', ') -->
 
-An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 5 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 5 mg/L at 100\% sample effort.  Observations above the threshold are shown in red. 
+<!-- p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) +  -->
+<!--   geom_point(size = 0.2) + -->
+<!--   geom_line(alpha = 0.2) +  -->
+<!--   facet_wrap(~ grp, ncol = 2) + -->
+<!--   thm +  -->
+<!--   scale_y_log10() + -->
+<!--   scale_colour_manual('', values = c('black', 'tomato1')) +  -->
+<!--   labs( -->
+<!--     title = 'Observed nitrogen (mg/L)',  -->
+<!--     subtitle = 'SDMF05, twenty simulations per scenario',  -->
+<!--     y = 'log-simulated Nitrate, Nitrite (mg/L)', -->
+<!--     x = NULL -->
+<!--   ) -->
 
-```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
-set.seed(1234)
-scns <- crossing(
-  thr = seq(1, 10, length = 2),
-  eff = seq(0.1, 1, length = 2)) %>% 
-  group_by(thr, eff) %>% 
-  mutate(
-    simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
-  ) 
+<!-- p -->
+<!-- ``` -->
 
-toplo <- scns %>% 
-  unnest(simdat) %>% 
-  ungroup %>% 
-  mutate(
-    thr = paste('exceedance', thr),
-    eff = paste('effort', eff)
-  ) %>% 
-  unite('grp', thr, eff, sep = ', ', remove = F) %>% 
-  mutate(
-    thr = gsub('^exceedance\\s', '', thr) %>% as.numeric,
-    val = case_when(
-      exp(simrand) > thr ~ 'Value above',
-      exp(simrand) <= thr ~'Value below'
-    )
-  )
+<!-- This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual.  -->
 
-p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) + 
-  geom_line(alpha = 0.2) + 
-  geom_point(size = 0.5, aes(shape = val, col = val)) +
-  geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-  facet_wrap(~ grp, nrow = 2) +
-  thm + 
-  scale_y_log10() +
-  scale_colour_manual(NULL, values = c('tomato1', 'black')) + 
-  scale_shape_manual(NULL, values = c(24, 25)) + 
-  labs(
-    title = 'Observed nitrogen (mg/L)', 
-    subtitle = 'SDMF05, twenty simulations per scenario', 
-    y = 'log-simulated Nitrate, Nitrite (mg/L)',
-    x = NULL
-  )
+<!-- ```{r fig.height = 5, fig.width = 6, out.width = '70%', fig.align = 'center'} -->
+<!-- p <- ggplot(pows, aes(x = eff, y = chg, z = pow)) +  -->
+<!--   # geom_tile() + -->
+<!--   geom_contour(aes(colour = stat(level))) + -->
+<!--   scale_colour_viridis_c('Power') + -->
+<!--   thm +  -->
+<!--   theme(legend.position = 'none') + -->
+<!--   # scale_x_continuous(limits = c(0, 1)) +  -->
+<!--   # scale_y_continuous(limits = c(0, 1)) +  -->
+<!--   geom_text_contour() +  -->
+<!--   labs( -->
+<!--     y = 'Magnitude of trend change (%)', -->
+<!--     title = 'Power estimates for SDMF05', -->
+<!--     subtitle = 'Lines show power for varying sample effort and trend magnitude', -->
+<!--     x = 'Relative sample effort' -->
+<!--   )  -->
 
-p
-```
+<!-- p -->
+<!-- ``` -->
 
-This plot shows the uncertainty associated with the average esimated concentration within each year.  The estimates served as a proxy for power given the sample effort and exceedance threshold. 
+<!-- An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 5 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 5 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.  -->
 
-```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'}
-toplo <- scns %>% 
-  mutate(
-    yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) {
+<!-- ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'} -->
+<!-- set.seed(1234) -->
+<!-- scns <- crossing( -->
+<!--   thr = seq(1, 10, length = 2), -->
+<!--   eff = seq(0.1, 1, length = 2)) %>%  -->
+<!--   group_by(thr, eff) %>%  -->
+<!--   mutate( -->
+<!--     simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20)) -->
+<!--   )  -->
 
-      out <- simdat %>% 
-        mutate(simrand = exp(simrand)) %>% 
-        group_by(Year) %>% 
-        summarise(
-          aveval = mean(simrand),
-          minval = t.test(simrand)$conf.int[1],
-          maxval = t.test(simrand)$conf.int[2]
-        ) %>% 
-        mutate(sig = case_when(
-          maxval > thr ~ 'detected', 
-          maxval < thr ~ 'not detected'
-          )
-        )
-      
-      return(out)
-          
-    })
-  ) %>% 
-  unnest(yrspow) %>% 
-  ungroup %>% 
-  mutate(
-    thr = paste('exceedance', thr),
-    eff = paste('effort', eff)
-  ) %>% 
-  unite('grp', thr, eff, sep = ', ', remove = F) %>% 
-  mutate(thr = gsub('^exceedance\\s', '', thr) %>%  as.numeric)
+<!-- toplo <- scns %>%  -->
+<!--   unnest(simdat) %>%  -->
+<!--   ungroup %>%  -->
+<!--   mutate( -->
+<!--     thr = paste('exceedance', thr), -->
+<!--     eff = paste('effort', eff) -->
+<!--   ) %>%  -->
+<!--   unite('grp', thr, eff, sep = ', ', remove = F) %>%  -->
+<!--   mutate( -->
+<!--     thr = gsub('^exceedance\\s', '', thr) %>% as.numeric, -->
+<!--     val = case_when( -->
+<!--       exp(simrand) > thr ~ 'Value above', -->
+<!--       exp(simrand) <= thr ~'Value below' -->
+<!--     ) -->
+<!--   ) -->
 
-p <- ggplot(toplo, aes(x = factor(Year), y = aveval)) + 
-  geom_bar(stat = 'identity', aes(fill = sig)) +
-  geom_errorbar(aes(ymin = minval, ymax = maxval, color = sig), width = 0) +
-  geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-  scale_colour_manual(NULL, values = c('tomato1', 'black')) + 
-  scale_fill_manual(NULL, values = c('tomato1', 'black')) + 
-  facet_wrap(~ grp, nrow = 2) +
-  thm + 
-  labs(
-    title = 'Ability to detect exceedance by year', 
-    subtitle = 'SDMF05, twenty simulations per scenario', 
-    y = 'Nitrogen concentration (mg/L)',
-    x = NULL
-  )
+<!-- p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) +  -->
+<!--   geom_line(alpha = 0.2) +  -->
+<!--   geom_point(size = 0.5, aes(shape = val, col = val)) + -->
+<!--   geom_hline(aes(yintercept = thr), linetype = 'dashed') + -->
+<!--   facet_wrap(~ grp, nrow = 2) + -->
+<!--   thm +  -->
+<!--   scale_y_log10() + -->
+<!--   scale_colour_manual(NULL, values = c('tomato1', 'black')) +  -->
+<!--   scale_shape_manual(NULL, values = c(24, 25)) +  -->
+<!--   labs( -->
+<!--     title = 'Observed nitrogen (mg/L)',  -->
+<!--     subtitle = 'SDMF05, twenty simulations per scenario',  -->
+<!--     y = 'log-simulated Nitrate, Nitrite (mg/L)', -->
+<!--     x = NULL -->
+<!--   ) -->
 
-p
-```
+<!-- p -->
+<!-- ``` -->
+
+<!-- This plot shows the uncertainty associated with the average esimated concentration within each year.  The estimates served as a proxy for power given the sample effort and exceedance threshold.  -->
+
+<!-- ```{r fig.height = 5, fig.width = 6, out.width = '100%', fig.align = 'center'} -->
+<!-- toplo <- scns %>%  -->
+<!--   mutate( -->
+<!--     yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) { -->
+
+<!--       out <- simdat %>%  -->
+<!--         mutate(simrand = exp(simrand)) %>%  -->
+<!--         group_by(Year) %>%  -->
+<!--         summarise( -->
+<!--           aveval = mean(simrand), -->
+<!--           minval = t.test(simrand)$conf.int[1], -->
+<!--           maxval = t.test(simrand)$conf.int[2] -->
+<!--         ) %>%  -->
+<!--         mutate(sig = case_when( -->
+<!--           maxval > thr ~ 'detected',  -->
+<!--           maxval < thr ~ 'not detected' -->
+<!--           ) -->
+<!--         ) -->
+
+<!--       return(out) -->
+
+<!--     }) -->
+<!--   ) %>%  -->
+<!--   unnest(yrspow) %>%  -->
+<!--   ungroup %>%  -->
+<!--   mutate( -->
+<!--     thr = paste('exceedance', thr), -->
+<!--     eff = paste('effort', eff) -->
+<!--   ) %>%  -->
+<!--   unite('grp', thr, eff, sep = ', ', remove = F) %>%  -->
+<!--   mutate(thr = gsub('^exceedance\\s', '', thr) %>%  as.numeric) -->
+
+<!-- p <- ggplot(toplo, aes(x = factor(Year), y = aveval)) +  -->
+<!--   geom_bar(stat = 'identity', aes(fill = sig)) + -->
+<!--   geom_errorbar(aes(ymin = minval, ymax = maxval, color = sig), width = 0) + -->
+<!--   geom_hline(aes(yintercept = thr), linetype = 'dashed') + -->
+<!--   scale_colour_manual(NULL, values = c('tomato1', 'black')) +  -->
+<!--   scale_fill_manual(NULL, values = c('tomato1', 'black')) +  -->
+<!--   facet_wrap(~ grp, nrow = 2) + -->
+<!--   thm +  -->
+<!--   labs( -->
+<!--     title = 'Ability to detect exceedance by year',  -->
+<!--     subtitle = 'SDMF05, twenty simulations per scenario',  -->
+<!--     y = 'Nitrogen concentration (mg/L)', -->
+<!--     x = NULL -->
+<!--   ) -->
+
+<!-- p -->
+<!-- ``` -->
 
 
-## Nitrogen analyses, all stations {.tabset .tabset-pills}
+<!-- ## Nitrogen analyses, all stations {.tabset .tabset-pills} -->
 
-```{r}
-allnitdat <- medat %>% 
-  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN')) %>% 
-  mutate(
-    Parameter = case_when(
-      Parameter %in% 'AmmoniaN' ~ 'Ammonia',
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
-      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen'
-    ), 
-    Year = year(Date), 
-    Month = month(Date, label = T)
-  ) %>% 
-  group_by(StationCode, Parameter, Year) %>% 
-  summarise(
-    Result = mean(Result, na.rm = T), 
-  ) %>%
-  group_by(StationCode, Parameter) %>% 
-  filter(n() == 10) %>% 
-  mutate(
-    avg = mean(Result, na.rm = T),
-    dev = Result - avg
-  ) %>% 
-  nest %>% 
-  mutate(
-    res = purrr::map(data, function(x){
+<!-- ```{r} -->
+<!-- allnitdat <- medat %>%  -->
+<!--   filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN')) %>%  -->
+<!--   mutate( -->
+<!--     Parameter = case_when( -->
+<!--       Parameter %in% 'AmmoniaN' ~ 'Ammonia', -->
+<!--       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite',  -->
+<!--       Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen' -->
+<!--     ),  -->
+<!--     Year = year(Date),  -->
+<!--     Month = month(Date, label = T) -->
+<!--   ) %>%  -->
+<!--   group_by(StationCode, Parameter, Year) %>%  -->
+<!--   summarise( -->
+<!--     Result = mean(Result, na.rm = T),  -->
+<!--   ) %>% -->
+<!--   group_by(StationCode, Parameter) %>%  -->
+<!--   filter(n() == 10) %>%  -->
+<!--   mutate( -->
+<!--     avg = mean(Result, na.rm = T), -->
+<!--     dev = Result - avg -->
+<!--   ) %>%  -->
+<!--   nest %>%  -->
+<!--   mutate( -->
+<!--     res = purrr::map(data, function(x){ -->
 
-      knout <- kendallTrendTest(dev ~ Year, x)
-      outest <- round(knout$estimate, 2)
-      outpval <- p_ast(knout$p.value)
-      nval <- nrow(na.omit(x))
-      out <- c(n = nval, outest, pval = outpval) %>% 
-        data.frame %>% 
-        t %>% 
-        data.frame %>% 
-        select(-intercept)
-      return(out)
-      
-    })
+<!--       knout <- kendallTrendTest(dev ~ Year, x) -->
+<!--       outest <- round(knout$estimate, 2) -->
+<!--       outpval <- p_ast(knout$p.value) -->
+<!--       nval <- nrow(na.omit(x)) -->
+<!--       out <- c(n = nval, outest, pval = outpval) %>%  -->
+<!--         data.frame %>%  -->
+<!--         t %>%  -->
+<!--         data.frame %>%  -->
+<!--         select(-intercept) -->
+<!--       return(out) -->
 
-  ) %>% 
-  select(-data) %>% 
-  unnest(res) %>% 
-  mutate(
-    tau = as.numeric(as.character(tau)), 
-    slope = as.numeric(as.character(slope)),
-    trend = ifelse(tau < 0, 'dec', 'inc')
-  )
-```
+<!--     }) -->
 
-Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+<!--   ) %>%  -->
+<!--   select(-data) %>%  -->
+<!--   unnest(res) %>%  -->
+<!--   mutate( -->
+<!--     tau = as.numeric(as.character(tau)),  -->
+<!--     slope = as.numeric(as.character(slope)), -->
+<!--     trend = ifelse(tau < 0, 'dec', 'inc') -->
+<!--   ) -->
+<!-- ``` -->
 
-The maps show the value for tau (direction of trend) for a Kendall test of nitrogen changes for stations with ten years of data, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between the three nitrogen constituents (ammonia left, nitrate/nitrite middle, total Kjeldahl nitrogen right).  The table shows the detailed results from the map.
+<!-- Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test. -->
 
-```{r}
-locs <- medat %>% 
-  select(StationCode, Longitude, Latitude) %>% 
-  unique
+<!-- The maps show the value for tau (direction of trend) for a Kendall test of nitrogen changes for stations with ten years of data, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between the three nitrogen constituents (ammonia left, nitrate/nitrite middle, total Kjeldahl nitrogen right).  The table shows the detailed results from the map. -->
 
-tomap <- allnitdat %>% 
-  left_join(locs, by = 'StationCode') %>% 
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+<!-- ```{r} -->
+<!-- locs <- medat %>%  -->
+<!--   select(StationCode, Longitude, Latitude) %>%  -->
+<!--   unique -->
 
- # point colors
-cols <- tomap %>% 
-  mutate(
-    cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
-    cols = as.character(cols)
-  ) %>% 
-  pull(cols)
+<!-- tomap <- allnitdat %>%  -->
+<!--   left_join(locs, by = 'StationCode') %>%  -->
+<!--   st_as_sf(coords = c("Longitude", "Latitude"), crs = prj) -->
 
-# size values
-cexv <- tomap %>% 
-  pull(tau) %>% 
-  abs %>% 
-  scales::rescale(to = c(2, 15))
+<!--  # point colors -->
+<!-- cols <- tomap %>%  -->
+<!--   mutate( -->
+<!--     cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')), -->
+<!--     cols = as.character(cols) -->
+<!--   ) %>%  -->
+<!--   pull(cols) -->
 
-# hover pt labels
-labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
+<!-- # size values -->
+<!-- cexv <- tomap %>%  -->
+<!--   pull(tau) %>%  -->
+<!--   abs %>%  -->
+<!--   scales::rescale(to = c(2, 15)) -->
 
-mapviewOptions(leafletHeight = 400)
+<!-- # hover pt labels -->
+<!-- labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval) -->
 
-m1sel <- 'Ammonia'
-m1map <- tomap %>% filter(Parameter %in% m1sel)
-m1cexv <- cexv[tomap$Parameter %in% m1sel]
-m1labs <- labs[tomap$Parameter %in% m1sel]
-m1cols <- cols[tomap$Parameter %in% m1sel]
-m1b <- mapview(m1map, zcol = 'tau', cex = m1cexv, label = m1labs, col.regions = m1cols, legend = F, layer.name = m1sel, map.types = mptyps)
+<!-- mapviewOptions(leafletHeight = 400) -->
 
-m2sel <- 'Nitrate, Nitrite'
-m2map <- tomap %>% filter(Parameter %in% m2sel)
-m2cexv <- cexv[tomap$Parameter %in% m2sel]
-m2labs <- labs[tomap$Parameter %in% m2sel]
-m2cols <- cols[tomap$Parameter %in% m2sel]
-m2b <- mapview(m2map, zcol = 'tau', cex = m2cexv, label = m2labs, col.regions = m2cols, legend = F, layer.name = m2sel, map.types = mptyps)
+<!-- m1sel <- 'Ammonia' -->
+<!-- m1map <- tomap %>% filter(Parameter %in% m1sel) -->
+<!-- m1cexv <- cexv[tomap$Parameter %in% m1sel] -->
+<!-- m1labs <- labs[tomap$Parameter %in% m1sel] -->
+<!-- m1cols <- cols[tomap$Parameter %in% m1sel] -->
+<!-- m1b <- mapview(m1map, zcol = 'tau', cex = m1cexv, label = m1labs, col.regions = m1cols, legend = F, layer.name = m1sel, map.types = mptyps) -->
 
-m3sel <- 'Total Kjeldahl Nitrogen'
-m3map <- tomap %>% filter(Parameter %in% m3sel)
-m3cexv <- cexv[tomap$Parameter %in% m3sel]
-m3labs <- labs[tomap$Parameter %in% m3sel]
-m3cols <- cols[tomap$Parameter %in% m3sel]
-m3b <- mapview(m3map, zcol = 'tau', cex = m3cexv, label = m3labs, col.regions = m3cols, legend = F, layer.name = m3sel, map.types = mptyps)
+<!-- m2sel <- 'Nitrate, Nitrite' -->
+<!-- m2map <- tomap %>% filter(Parameter %in% m2sel) -->
+<!-- m2cexv <- cexv[tomap$Parameter %in% m2sel] -->
+<!-- m2labs <- labs[tomap$Parameter %in% m2sel] -->
+<!-- m2cols <- cols[tomap$Parameter %in% m2sel] -->
+<!-- m2b <- mapview(m2map, zcol = 'tau', cex = m2cexv, label = m2labs, col.regions = m2cols, legend = F, layer.name = m2sel, map.types = mptyps) -->
 
-leafsync::sync(m1b, m2b, m3b, ncol = 3) 
-```
+<!-- m3sel <- 'Total Kjeldahl Nitrogen' -->
+<!-- m3map <- tomap %>% filter(Parameter %in% m3sel) -->
+<!-- m3cexv <- cexv[tomap$Parameter %in% m3sel] -->
+<!-- m3labs <- labs[tomap$Parameter %in% m3sel] -->
+<!-- m3cols <- cols[tomap$Parameter %in% m3sel] -->
+<!-- m3b <- mapview(m3map, zcol = 'tau', cex = m3cexv, label = m3labs, col.regions = m3cols, legend = F, layer.name = m3sel, map.types = mptyps) -->
 
-```{r}
-totab <- allnitdat %>% 
-  ungroup %>% 
-  arrange(Parameter, StationCode) %>% 
-  mutate(
-    Parameter = ifelse(duplicated(Parameter), '', Parameter)
-  ) %>% 
-  select(Parameter, StationCode, everything())
+<!-- leafsync::sync(m1b, m2b, m3b, ncol = 3)  -->
+<!-- ``` -->
 
-HTML(knitr::kable(totab, format = 'html') %>% 
-    kable_styling(full_width = T, font_size = 14))
-```
+<!-- ```{r} -->
+<!-- totab <- allnitdat %>%  -->
+<!--   ungroup %>%  -->
+<!--   arrange(Parameter, StationCode) %>%  -->
+<!--   mutate( -->
+<!--     Parameter = ifelse(duplicated(Parameter), '', Parameter) -->
+<!--   ) %>%  -->
+<!--   select(Parameter, StationCode, everything()) -->
+
+<!-- HTML(knitr::kable(totab, format = 'html') %>%  -->
+<!--     kable_styling(full_width = T, font_size = 14)) -->
+<!-- ``` -->
