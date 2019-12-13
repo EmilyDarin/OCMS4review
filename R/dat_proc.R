@@ -48,7 +48,7 @@ data(medat)
 
 powdat <- medat %>% 
   filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
-  filter(StationCode %in% 'SDMF05') %>% 
+  # filter(StationCode %in% 'SDMF05') %>% 
   mutate(
     Parameter = case_when(
       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
@@ -64,9 +64,11 @@ powdat <- medat %>%
 #   geom_line(data = powdat, aes(x= Date, y = log(Result), col = 'red'))
 
 scns <- crossing(
-  chg = seq(0.1, 1, length = 20),
-  eff = seq(0.1, 1,length = 20)
-)
+  sta = unique(powdat$StationCode),
+  chg = seq(0.1, 1, length = 10),
+  eff = seq(0.1, 1,length = 10)
+  ) %>% 
+  filter(!sta %in% 'SICG03') 
 
 # setup parallel backend
 ncores <- detectCores() - 1 
@@ -84,10 +86,14 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
   
   source("R/funcs.R")
   
+  sta <- scns[i, ][['sta']]
   chg <- scns[i, ][['chg']]
   eff <- scns[i,][['eff']]
   
-  simdat <- simvals(powdat, chg = chg, eff = eff, sims = 10000)
+  topow <- powdat %>% 
+    filter(StationCode %in% sta)
+  
+  simdat <- simvals(topow, chg = chg, eff = eff, sims = 2000)
   powfun(simdat)
   
 }
