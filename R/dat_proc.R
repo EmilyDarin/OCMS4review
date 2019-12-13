@@ -117,20 +117,23 @@ save(pows,file = here::here('data', 'pows.RData'), compress = 'xz')
 data(medat)
 
 # data to eval
-powdat <- medat %>% 
-  filter(Parameter %in% c('NitrateNitriteNO3')) %>% 
-  filter(StationCode %in% 'SDMF05') %>% 
+scns <- medat %>% 
+  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')) %>% 
+  filter(!StationCode %in% 'SICG03') %>% 
   mutate(
     Parameter = case_when(
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite'
-    )
-  )
-
-# grid scenarios to eval
-scns <- crossing(
-  thr = seq(0.1, 10, length = 10),
-  eff = seq(0.1, 1,length = 10)
-)
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus'
+    ),
+    Year = year(Date), 
+    Season = yday(Date),
+    dectime = decimal_date(Date)
+  ) %>% 
+  group_by(StationCode, Parameter) %>% 
+  nest
 
 # setup parallel backend
 ncores <- detectCores() - 1 
@@ -148,18 +151,43 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
   
   source("R/funcs.R")
   
-  thr <- scns[i, ][['thr']]
-  eff <- scns[i,][['eff']]
+  dat <- scns[i, 'data'] %>% 
+    .[[1]] %>% 
+    .[[1]]
   
-  thrdat <- thrvals(powdat, eff = eff, sims = 1000)
-  thrfun(thrdat, thr = thr)
+  # median concentration as baseline
+  medv <- thrvals(dat, 1, sims = 100) %>% 
+    pull(simrand) %>% 
+    median() %>% 
+    exp()
+  
+  sims <- crossing(
+      thr = seq(log(medv), log(20*medv), length = 20),
+      eff = seq(0.05, 1, length = 20)
+    ) %>% 
+    group_by(eff, thr) %>% 
+    mutate(
+      simdat = purrr::map(eff, ~thrvals(dat, eff, sims = 500))
+    )
+  
+  # get power 
+  thrpow <- sims %>% 
+    group_by(eff, thr) %>% 
+    mutate(
+      pow = purrr::pmap(list(simdat, thr), ~thrfun(simdat, thr))
+    ) %>% 
+    select(-simdat) %>%
+    unnest(pow) %>% 
+    ungroup()
+  
+  return(thrpow)
   
 }
 
 # combine results with scns
 thrs <- scns %>% 
-  mutate(
-    pow = unlist(res)
-  )
-
+  bind_cols(enframe(res)) %>% 
+  select(-data, -name) %>%   
+  unnest(value)
+    
 save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')
