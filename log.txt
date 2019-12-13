@@ -1,2 +1,2 @@
-100 of 100 
-Time difference of 13.51482 secs
+1500 of 1500 
+Time difference of 21.67329 mins
