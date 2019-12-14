@@ -4,7 +4,7 @@ Materials for reviewing Orange County MS4 monitoring program data. Raw data avai
 
 ## Web links
 
-* [Mass emissions](https://sccwrp.github.io/OCMS4review/mass_emissions)
+* [Mass emissions](https://sccwrp.shinyapps.io/ocms4review/mass_emissions.Rmd)
 
 ## Overview
 
