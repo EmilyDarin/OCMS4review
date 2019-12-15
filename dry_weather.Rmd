@@ -25,6 +25,7 @@ library(kableExtra)
 library(mgcv)
 library(metR)
 library(shinyWidgets)
+library(plotly)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -34,7 +35,7 @@ prj <- 4326 # wgs84
 
 source('R/funcs.R')
 
-thm1 <- theme_bw(base_size = 16) + 
+thm1 <- theme_bw(base_size = 12) + 
   theme(
     strip.background = element_blank(), 
     strip.placement = 'outside', 
@@ -136,6 +137,8 @@ obsp1 <- reactive({
     p <- p + 
       scale_y_log10()
 
+  p <- ggplotly(p)
+  
   return(p)
 
 })
@@ -156,9 +159,9 @@ obsp2 <- reactive({
   ttl <- paste(unique(toplo$Parameter), 'by year')
   ylb <- paste0('Concentration (', unique(toplo$Units), ')')
 
-  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) +
-    geom_boxplot() +
-    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year, label = StationCode)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_point(position = position_jitter(width = 0.2), alpha = 0.4) + 
     thm1 +
     labs(
       subtitle = wshsel,
@@ -170,6 +173,8 @@ obsp2 <- reactive({
     p <- p + 
       scale_y_log10()
 
+  p <- ggplotly(p)
+  
   return(p)
 
 })
@@ -190,9 +195,9 @@ obsp3 <- reactive({
   ttl <- paste(unique(toplo$Parameter), 'by month')
   ylb <- paste0('Concentration (', unique(toplo$Units), ')')
   
-  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) +
-    geom_boxplot() +
-    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month, label = StationCode)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_point(position = position_jitter(width = 0.2), alpha = 0.4) + 
     thm1 +
     labs(
       subtitle = wshsel,
@@ -883,9 +888,12 @@ column(12,
 Observed time series for major nitrogen constituents.
 
 ```{r}
-renderPlot({obsp1()}, height = 300, width = 700)
-renderPlot({obsp2()}, height = 300, width = 700)
-renderPlot({obsp3()}, height = 300, width = 700)
+output$obsp1 <- renderPlotly({obsp1()})
+output$obsp2 <- renderPlotly({obsp2()})
+output$obsp3 <- renderPlotly({obsp3()})
+plotlyOutput('obsp1', height = "400px", width = "900px")
+plotlyOutput('obsp2', height = "400px", width = "900px")
+plotlyOutput('obsp3', height = "400px", width = "900px")
 ```
 
 <!-- ### Trends -->
