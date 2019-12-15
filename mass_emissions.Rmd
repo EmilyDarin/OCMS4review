@@ -1,15 +1,14 @@
 ---
 output: 
     html_document:
-        code_folding: hide
         css: styles.css
 runtime: shiny
 ---
 
 # Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
 
-```{r setup, message = F, warning = F, results = 'hide'}
-knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
+```{r setup, message = F, warning = F, results = 'hide', echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
 
 library(tidyverse)
 library(sf)
@@ -38,7 +37,7 @@ thm1 <- theme_bw(base_size = 16) +
   theme(
     strip.background = element_blank(), 
     strip.placement = 'outside', 
-    axis.title = element_blank(), 
+    axis.title.x = element_blank(), 
     legend.title = element_blank(), 
     legend.position = 'bottom', 
     panel.grid = element_blank()
@@ -109,14 +108,13 @@ obsp1 <- reactive({
   p <- ggplot(toplo, aes(x = Date, y = Result)) + 
     geom_line() + 
     geom_point(aes(colour = Detection)) + 
-    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 + 
     # scale_y_log10() + 
     scale_colour_manual(values = c('tomato1', 'black')) + 
     labs(
       subtitle = stasel, 
       title = ttl, 
-      ylab = 'Concentration (mg/L)'
+      y = 'Concentration (mg/L)'
     )
   
   return(p)
@@ -135,14 +133,13 @@ obsp2 <- reactive({
 
   p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) + 
     geom_boxplot() + 
-    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 +
     # scale_y_log10() + 
     # scale_colour_manual(values = c('tomato1', 'black')) + 
     labs(
       subtitle = stasel,
       title = paste(ttl, 'by year'), 
-      ylab = 'Concentration (mg/L)'
+      y = 'Concentration (mg/L)'
     )
 
   return(p)
@@ -161,14 +158,13 @@ obsp3 <- reactive({
 
   p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) + 
     geom_boxplot() + 
-    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 +
     # scale_y_log10() + 
     # scale_colour_manual(values = c('tomato1', 'black')) + 
     labs(
       subtitle = stasel, 
       title = paste(ttl, 'by month'), 
-      ylab = 'Concentration (mg/L)'
+      y = 'Concentration (mg/L)'
     )
 
   return(p)
@@ -218,6 +214,7 @@ trndp1 <- reactive({
     scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 +
+    theme(axis.title.y = element_blank()) +
     geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
     # scale_y_log10() +
     # scale_y_continuous('Density (fish/100ft)') +
@@ -292,6 +289,7 @@ trndp2 <- reactive({
     geom_line() +
     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 +
+    theme(axis.title.y = element_blank()) +
     # scale_y_log10() +
     labs(
       title = paste0('Observed ', varsel),
@@ -400,7 +398,7 @@ powplo1 <- reactive({
       title = 'Observed time series',
       subtitle = stasel,
       xlab = NULL,
-      ylab = paste0(varsel, ' (mg/L)')
+      y = paste0(varsel, ' (mg/L)')
     )
   
   return(p)
@@ -485,8 +483,8 @@ powplo2 <- reactive({
     labs(
       title = 'Observed time series (mg/L)',
       subtitle = paste0(stasel, ', twenty simulations per scenario'),
-      ylab = paste0('log-simulated ', varsel, ' (mg/L)'),
-      xlab = NULL
+      y = paste0('log-simulated ', varsel, ' (mg/L)'),
+      x = NULL
     )
   
   return(p)
@@ -568,8 +566,8 @@ powplo4 <- reactive({
     labs(
       title = 'Observed time series (mg/L)',
       subtitle = paste0(stasel, ', twenty simulations per scenario'),
-      ylab = paste0('log-simulated ', varsel, ' (mg/L)'),
-      xlab = NULL
+      y = paste0('log-simulated ', varsel, ' (mg/L)'),
+      x = NULL
     )
   
   p

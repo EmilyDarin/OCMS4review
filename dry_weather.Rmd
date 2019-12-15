@@ -1,15 +1,14 @@
 ---
 output: 
   html_document:
-      code_folding: hide
       css: styles.css
 runtime: shiny
 ---
   
 # Evaluation of OC MS4 monitoring program, dry weather monitoring {.tabset}
   
-```{r setup, message = F, warning = F, results = 'hide'}
-knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
+```{r setup, message = F, warning = F, results = 'hide', echo = F}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
 
 library(tidyverse)
 library(sf)
@@ -25,6 +24,7 @@ library(shiny)
 library(kableExtra)
 library(mgcv)
 library(metR)
+library(shinyWidgets)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -38,7 +38,7 @@ thm1 <- theme_bw(base_size = 16) +
   theme(
     strip.background = element_blank(), 
     strip.placement = 'outside', 
-    axis.title = element_blank(), 
+    axis.title.x = element_blank(), 
     legend.title = element_blank(), 
     legend.position = 'bottom', 
     panel.grid = element_blank()
@@ -74,122 +74,147 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 ```
 
 ```{r reactives}
-# stapardat <- reactive({
-# 
-#   # inputs
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-# 
-#   out <- medat %>%
-#     filter(StationCode %in% stasel) %>%
-#     mutate(
-#       Parameter = case_when(
-#         Parameter %in% 'AmmoniaN' ~ 'Ammonia',
-#         Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite',
-#         Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
-#         Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate',
-#         Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus',
-#         T ~ Parameter
-#       ),
-#       Detection = case_when(
-#         Qualifier %in% '<' ~ 'below detection',
-#         T ~ 'within range'
-#       ),
-#       Year = year(Date),
-#       Month = month(Date, label = T)
-#     ) %>%
-#     filter(Parameter %in% varsel)
-# 
-#   return(out)
-# 
-# })
-# 
-# # first observed plot
-# obsp1 <- reactive({
-# 
-#   # inputs
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
-# 
-#   toplo <- stapardat
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     geom_point(aes(colour = Detection)) +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     # scale_y_log10() +
-#     scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       subtitle = stasel,
-#       title = ttl,
-#       ylab = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # second observed plot
-# obsp2 <- reactive({
-# 
-#   # inputs
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
-# 
-#   toplo <- stapardat
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) +
-#     geom_boxplot() +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     # scale_y_log10() +
-#     # scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       subtitle = stasel,
-#       title = paste(ttl, 'by year'),
-#       ylab = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # third observed plot
-# obsp3 <- reactive({
-# 
-#   # inputs
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
-# 
-#   toplo <- stapardat
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) +
-#     geom_boxplot() +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     # scale_y_log10() +
-#     # scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       subtitle = stasel,
-#       title = paste(ttl, 'by month'),
-#       ylab = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
+wshpardat <- reactive({
+
+  # inputs
+  wshsel <- input$wshsel
+  varsel <- input$varsel
+
+  out <- dwdat %>%
+    filter(Watershed %in% wshsel) %>%
+    mutate(
+      Year = year(Date),
+      Month = month(Date, label = T)
+    ) %>%
+    filter(Parameter %in% varsel)
+
+  return(out)
+
+})
+
+# further subset of wshpardat by stations
+stawshpardat <- reactive({
+  
+  # inputs
+  wshpardat <- wshpardat()
+  stasel <- input$stasel
+
+  out <- wshpardat %>% 
+    filter(StationCode %in% stasel)
+  
+  return(out)
+  
+})
+
+# first observed plot
+obsp1 <- reactive({
+
+  req(nrow(stawshpardat()) > 0)
+  
+  # inputs
+  stawshpardat <- stawshpardat()
+  wshsel <- input$wshsel
+  logsel <- input$logsel
+
+  toplo <- stawshpardat
+  
+  # labels
+  ylb <- paste0('Concentration (', unique(toplo$Units), ')')
+  ttl <- unique(toplo$Parameter)
+
+  p <- ggplot(toplo, aes(x = Date, y = Result, group = StationCode)) +
+    geom_line() +
+    geom_point() +
+    thm1 +
+    labs(
+      subtitle = wshsel,
+      title = ttl,
+      y = ylb
+    )
+  
+  if(logsel)
+    p <- p + 
+      scale_y_log10()
+
+  return(p)
+
+})
+
+# second observed plot
+obsp2 <- reactive({
+
+  req(nrow(stawshpardat()) > 0)
+  
+  # inputs
+  stawshpardat <- stawshpardat()
+  wshsel <- input$wshsel
+  logsel <- input$logsel
+
+  toplo <- stawshpardat
+  
+  # labels
+  ttl <- paste(unique(toplo$Parameter), 'by year')
+  ylb <- paste0('Concentration (', unique(toplo$Units), ')')
+
+  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) +
+    geom_boxplot() +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    labs(
+      subtitle = wshsel,
+      title = ttl,
+      y = ylb
+    )
+  
+  if(logsel)
+    p <- p + 
+      scale_y_log10()
+
+  return(p)
+
+})
+
+# third observed plot
+obsp3 <- reactive({
+
+  req(nrow(stawshpardat()) > 0)
+  
+  # inputs
+  stawshpardat <- stawshpardat()
+  wshsel <- input$wshsel
+  logsel <- input$logsel
+  
+  toplo <- stawshpardat
+  
+  # labels
+  ttl <- paste(unique(toplo$Parameter), 'by month')
+  ylb <- paste0('Concentration (', unique(toplo$Units), ')')
+  
+  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) +
+    geom_boxplot() +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    labs(
+      subtitle = wshsel,
+      title = ttl,
+      y = ylb
+    )
+
+  if(logsel)
+    p <- p + 
+      scale_y_log10()
+  
+  return(p)
+
+})
+
 # # trend data
 # trnddat <- reactive({
 # 
 #   # input
-#   stapardat <- stapardat()
+#   wshpardat <- wshpardat()
 # 
-#   out <- stapardat %>%
+#   out <- wshpardat %>%
 #     group_by(Parameter, Year) %>%
 #     summarise(
 #       confint = t.test(Result)$conf.int %>% range %>% diff,
@@ -216,9 +241,9 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # 
 #   # input
 #   trnddat <- trnddat()
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 # 
-#   subttl <- paste0(stasel, ', average in parentheses on y-axis')
+#   subttl <- paste0(wshsel, ', average in parentheses on y-axis')
 # 
 #   p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
 #     geom_bar(stat = 'identity', colour = 'grey') +
@@ -275,12 +300,12 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # trndp2 <- reactive({
 # 
 #   # input
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
+#   wshpardat <- wshpardat()
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   win <- 12
-#   toplo <- stapardat %>%
+#   toplo <- wshpardat %>%
 #     select(Date, Parameter, Result) %>%
 #     mutate(Date = floor_date(Date, unit = 'month')) %>%
 #     group_by(Date, Parameter) %>%
@@ -303,7 +328,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     # scale_y_log10() +
 #     labs(
 #       title = paste0('Observed ', varsel),
-#       subtitle = stasel,
+#       subtitle = wshsel,
 #       ylab = 'Concentration (mg/L)'
 #     )
 # 
@@ -317,7 +342,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
 #     labs(
 #       title = 'Deviations from annual average',
-#       subtitle = stasel,
+#       subtitle = wshsel,
 #       ylab = NULL
 #     )
 # 
@@ -331,9 +356,9 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # trndtab2 <- reactive({
 # 
 #   # input
-#   stapardat <- stapardat()
+#   wshpardat <- wshpardat()
 # 
-#   totabs1kn <- stapardat %>%
+#   totabs1kn <- wshpardat %>%
 #     group_by(Parameter, Year) %>%
 #     summarise(
 #       Result = mean(Result, na.rm = T),
@@ -375,11 +400,11 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # powdat <- reactive({
 # 
 #   # input
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   out <- medat %>%
-#     filter(StationCode %in% stasel) %>%
+#     filter(StationCode %in% wshsel) %>%
 #     mutate(
 #       Parameter = case_when(
 #         Parameter %in% 'AmmoniaN' ~ 'Ammonia',
@@ -403,7 +428,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # powplo1 <- reactive({
 # 
 #   # input
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 #   powdat <- powdat()
 # 
@@ -413,7 +438,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     scale_y_log10() +
 #     labs(
 #       title = 'Observed time series',
-#       subtitle = stasel,
+#       subtitle = wshsel,
 #       xlab = NULL,
 #       ylab = paste0(varsel, ' (mg/L)')
 #     )
@@ -427,7 +452,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # 
 #   # input
 #   powdat <- powdat()
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   scns <- crossing(
@@ -499,7 +524,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     scale_colour_manual('', values = c('black', 'tomato1')) +
 #     labs(
 #       title = 'Observed time series (mg/L)',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
+#       subtitle = paste0(wshsel, ', twenty simulations per scenario'),
 #       ylab = paste0('log-simulated ', varsel, ' (mg/L)'),
 #       xlab = NULL
 #     )
@@ -512,11 +537,11 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # powplo3 <- reactive({
 # 
 #   # input
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   toplo <- pows %>%
-#     filter(sta %in% stasel) %>%
+#     filter(sta %in% wshsel) %>%
 #     filter(par %in% varsel)
 # 
 #   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
@@ -530,7 +555,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     geom_text_contour() +
 #     labs(
 #       y = paste0('Magnitude of trend change (%) of ', varsel),
-#       title = paste0('Power estimates for ', stasel),
+#       title = paste0('Power estimates for ', wshsel),
 #       subtitle = 'Lines show power for varying sample effort and trend magnitude',
 #       x = 'Relative sample effort'
 #     )
@@ -544,7 +569,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # 
 #   # inputs
 #   powdat <- powdat()
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   scns <- crossing(
@@ -582,7 +607,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     scale_shape_manual(NULL, values = c(24, 25)) +
 #     labs(
 #       title = 'Observed time series (mg/L)',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
+#       subtitle = paste0(wshsel, ', twenty simulations per scenario'),
 #       ylab = paste0('log-simulated ', varsel, ' (mg/L)'),
 #       xlab = NULL
 #     )
@@ -596,7 +621,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # 
 #   # inputs
 #   powdat <- powdat()
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   scns <- crossing(
@@ -648,7 +673,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     thm2 +
 #     labs(
 #       title = 'Ability to detect exceedance by year',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
+#       subtitle = paste0(wshsel, ', twenty simulations per scenario'),
 #       y = paste0(varsel, ' concentration (mg/L)'),
 #       x = NULL
 #     )
@@ -661,11 +686,11 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 # powplo6 <- reactive({
 # 
 #   # input
-#   stasel <- input$stasel
+#   wshsel <- input$wshsel
 #   varsel <- input$varsel
 # 
 #   toplo <- thrs %>%
-#     filter(StationCode %in% stasel) %>%
+#     filter(StationCode %in% wshsel) %>%
 #     filter(Parameter %in% varsel)
 # 
 #   p <- ggplot(toplo, aes(x = eff, y = thr, z = pow)) +
@@ -679,7 +704,7 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 #     geom_text_contour() +
 #     labs(
 #       y = paste0('Magnitude of observations above\nthe median for ', varsel),
-#       title = paste0('Power estimates for ', stasel),
+#       title = paste0('Power estimates for ', wshsel),
 #       subtitle = 'Lines show power for varying sample effort and thresholds',
 #       x = 'Relative sample effort'
 #     )
@@ -823,28 +848,45 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by year") %>%
        kable_styling(full_width = T, font_size = 14))
 ```
 
-## Analyses by station {.tabset .tabset-pills}
+## Analyses by watershed {.tabset .tabset-pills}
 
 ```{r}
 column(12, 
        column(4, 
-              selectInput('stasel', 'Select station:', choices = unique(dwdat$Watershed))
-       )#,
-       # column(4,
-       #         selectInput('varsel', 'Select constituent:', choices = unique(pows$par))
-       # )
+              selectInput('wshsel', 'Select watershed:', choices = unique(dwdat$Watershed))
+       ),
+       column(4,
+               selectInput('varsel', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+       ), 
+       column(4, 
+              renderUI({
+      
+                # input
+                spaflt <- wshpardat()
+                stas <- unique(wshpardat()$StationCode)
+                
+                pickerInput(inputId = "stasel", label = 'Select stations:', choices = stas,
+                  options = list(`actions-box` = TRUE, size = 20), selected = stas, multiple = TRUE)      
+                
+              })
+        )
+)
+column(12, 
+       column(4, 
+              selectInput('logsel', 'Log scale?', choices = c(F, T))
+       )
 )
 ```
 
-<!-- ### Observed -->
+### Observed
 
-<!-- Observed time series for major nitrogen constituents. -->
+Observed time series for major nitrogen constituents.
 
-<!-- ```{r} -->
-<!-- renderPlot({obsp1()}, height = 350, width = 700) -->
-<!-- renderPlot({obsp2()}, height = 250, width = 700) -->
-<!-- renderPlot({obsp3()}, height = 250, width = 700) -->
-<!-- ``` -->
+```{r}
+renderPlot({obsp1()}, height = 300, width = 700)
+renderPlot({obsp2()}, height = 300, width = 700)
+renderPlot({obsp3()}, height = 300, width = 700)
+```
 
 <!-- ### Trends -->
 
@@ -874,7 +916,7 @@ column(12,
 
 <!-- A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every ~14 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency. -->
 
-<!-- The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.  The power analyses are specific to the characteristics of the time series at this station. -->
+<!-- The observed time series for `r renderText({input$varsel})` at `r renderText({input$wshsel})` is shown below.  The power analyses are specific to the characteristics of the time series at this station. -->
 
 <!-- ```{r} -->
 <!-- renderPlot({powplo1()}, height = 350, width = 900) -->
