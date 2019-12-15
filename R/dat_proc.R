@@ -19,6 +19,12 @@ dwdat <- dw_dat %>%
   ) %>% 
   rename(StationCode = Station) %>% 
   inner_join(dw_stat, by = c('StationCode', 'Watershed')) %>% 
+  mutate(
+    Watershed = case_when(
+      Watershed == '' ~ 'San Gabriel River - Coyote Creek', 
+      T ~ Watershed
+    )
+  ) %>% 
   select(StationCode, Watershed, Date, Parameter, Result, Units, Longitude, Latitude)
 
 save(dwdat, file = here::here('data', 'dwdat.RData'), compress = 'xz')
