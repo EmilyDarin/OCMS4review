@@ -376,6 +376,31 @@ HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by year"
        kable_styling(full_width = T, font_size = 14))
 ```
 
+```{r toptabmo}
+sums <- dwdat %>% 
+  mutate(Month = month(Date, label = TRUE)) %>% 
+  filter(Parameter %in% tops) %>% 
+  count(Month, Watershed) %>% 
+  bind_rows(group_by(., Month) %>%
+              summarise(n = sum(n)) %>%
+              mutate(Watershed = 'Total')) %>%
+  bind_rows(group_by(., Watershed) %>%
+              summarise(n=sum(n)) %>%
+              mutate(Month = 'Total')) %>%
+  mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Total"))) %>%
+  spread(Month,n,fill=0)
+
+alltot <- sums %>% 
+  filter(Watershed != 'Total')
+coltot <- sums %>% 
+  filter(Watershed == 'Total')
+
+totab <- bind_rows(alltot, coltot)
+
+HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by month") %>% 
+       kable_styling(full_width = T, font_size = 14))
+```
+
 ```{r nuttab}
 sums <- dwdat %>% 
   filter(Parameter %in% nuts) %>% 
@@ -421,6 +446,31 @@ coltot <- sums %>%
 totab <- bind_rows(alltot, coltot)
 
 HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by year") %>% 
+       kable_styling(full_width = T, font_size = 14))
+```
+
+```{r nuttabmo}
+sums <- dwdat %>% 
+  mutate(Month = month(Date, label = T)) %>% 
+  filter(Parameter %in% nuts) %>% 
+  count(Month, Watershed) %>% 
+  bind_rows(group_by(., Month) %>%
+              summarise(n = sum(n)) %>%
+              mutate(Watershed = 'Total')) %>%
+  bind_rows(group_by(., Watershed) %>%
+              summarise(n=sum(n)) %>%
+              mutate(Month = 'Total')) %>%
+  mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Total"))) %>% 
+  spread(Month,n,fill=0)
+
+alltot <- sums %>% 
+  filter(Watershed != 'Total')
+coltot <- sums %>% 
+  filter(Watershed == 'Total')
+
+totab <- bind_rows(alltot, coltot)
+
+HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by month") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
