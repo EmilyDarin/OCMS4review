@@ -960,9 +960,9 @@ HTML(knitr::kable(totab, format = 'html') %>%
     kable_styling(full_width = T, font_size = 14))
 ```
 
-### Site differences
+### Station differences
 
-PCA comparison of all sites, nutrients, and complete time series
+PCA comparison of all stations, nutrients, and complete time series
 
 ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
 # rename some nutrient parameters
