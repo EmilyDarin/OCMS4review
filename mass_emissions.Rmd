@@ -24,6 +24,9 @@ library(shiny)
 library(kableExtra)
 library(mgcv)
 library(metR)
+library(vegan)
+library(ggord)
+library(patchwork)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -32,6 +35,9 @@ mapviewOptions(leafletHeight = 300)
 prj <- 4326 # wgs84
 
 source('R/funcs.R')
+
+##
+# ggplot themes
 
 thm1 <- theme_bw(base_size = 16) + 
   theme(
@@ -50,7 +56,21 @@ thm2 <- theme_bw(base_size = 16) +
     legend.position = 'bottom', 
     panel.grid = element_blank()
   )
-  
+
+pbase <- theme_bw(base_family = 'serif') +
+  theme(
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(), 
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 10), 
+    axis.text.y = element_text(size = 10),
+    legend.position = 'top',
+    legend.direction = 'horizontal',
+    # plot.margin = unit(c(4,4,0,0), "lines"),
+    strip.background = element_blank(), 
+    strip.text.y = element_text(angle = 0, hjust = 0, vjust = 0.5), 
+    panel.background = element_rect(fill = 'black')
+  ) 
+
 data(medat)
 data(pows)
 data(thrs)
@@ -825,6 +845,8 @@ renderPlot({powplo6()}, height = 650, width = 900)
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
 
+### Trends
+
 ```{r}
 allnitdat <- medat %>%
   filter(Parameter %in% c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen')) %>%
@@ -937,3 +959,110 @@ totab <- allnitdat %>%
 HTML(knitr::kable(totab, format = 'html') %>%
     kable_styling(full_width = T, font_size = 14))
 ```
+
+### Site differences
+
+PCA comparison of all sites, nutrients, and complete time series
+
+```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
+# rename some nutrient parameters
+meprp <- medat %>% 
+  filter(!StationCode %in% 'SICG03') %>% 
+  mutate(
+    Date = floor_date(Date, unit = 'month')
+  ) %>% 
+  filter(Parameter %in% nuts) %>% 
+  select(Watershed, StationCode, Date, Parameter, Result) %>% 
+  group_by(Watershed, StationCode, Date, Parameter) %>% 
+  summarise(Result = mean(Result, na.rm = T)) %>% 
+  group_by(StationCode, Parameter) %>% 
+  mutate(Result = case_when(
+    is.na(Result) ~ mean(Result, na.rm = T), 
+    T ~ Result
+    )
+  ) %>% 
+  ungroup() 
+  
+toord <- meprp %>% 
+  spread(Parameter, Result) %>% 
+  na.omit %>%
+  unite('rwnm', StationCode, Date) %>% 
+  column_to_rownames('rwnm')
+wshd <- toord$Watershed
+toord <- toord %>% 
+  select(-Watershed) %>% 
+  decostand(method = 'log', na.rm = T) %>% 
+  decostand(method= 'standardize', na.rm = T)
+
+ord <- toord %>% 
+  prcomp(scale. = T, center = T)
+
+ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5) + 
+  scale_fill_viridis_d(guide_legend(ncol = 1)) + 
+  theme(
+    legend.position = 'top',
+    legend.title = element_blank()
+    )
+```
+
+These plots show measures of dissimilarity for each parameter between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
+
+```{r fig.width = 11, fig.height = 9, fig.align = 'center'}
+siteshd <- meprp %>% 
+  select(Watershed, StationCode) %>% 
+  unique
+
+dissim <- meprp %>% 
+  group_by(Parameter) %>% 
+  nest %>% 
+  mutate(
+    sitcor = purrr::map(data, function(x){
+      
+      disdat <- x %>% 
+        select(-Watershed) %>% 
+        spread(StationCode, Result) %>% 
+        column_to_rownames('Date') %>% 
+        decostand(method = 'log', na.rm = T) %>% 
+        decostand(method= 'standardize', na.rm = T) %>% 
+        rownames_to_column('Date') %>% 
+        gather('StationCode', 'Result', -Date) %>% 
+        spread(Date, Result) %>% 
+        column_to_rownames('StationCode') %>% 
+        vegdist(method = 'euclidean', na.rm = T)
+      
+      toplo <- disdat %>%
+        as.matrix %>%
+        as.data.frame %>%
+        rownames_to_column('StationCode') %>%
+        gather('StationCode2', 'dist', -StationCode) %>%
+        left_join(siteshd, by = 'StationCode') %>%
+        arrange(Watershed, dist) %>%
+        mutate(
+          Watershed = factor(Watershed, levels = unique(Watershed)),
+          dist = ifelse(StationCode == StationCode2, NA, dist)
+        )
+      
+      return(toplo)
+
+    }),
+    sitplo = purrr::pmap(list(Parameter, sitcor), function(Parameter, sitcor){
+      
+      p <- ggplot(sitcor) +
+        geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
+        scale_x_discrete('', expand = c(0, 0)) +
+        scale_y_discrete('', expand = c(0, 0)) +
+        scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 8, limits = c(0, 16)) +
+        guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
+        ggtitle(Parameter) + 
+        pbase
+      
+      return(p)
+      
+    })
+  )
+
+combined <- dissim$sitplo[[1]] + dissim$sitplo[[2]] + dissim$sitplo[[3]] + dissim$sitplo[[4]] + dissim$sitplo[[5]] & theme(legend.position = 'bottom') 
+combined + plot_layout(guides = "collect")
+```
+
+
