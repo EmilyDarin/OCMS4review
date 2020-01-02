@@ -161,32 +161,37 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     .[[1]] %>% 
     .[[1]]
   
-  # median concentration as baseline
-  medv <- thrvals(dat, 1, sims = 100) %>% 
-    pull(simrand) %>% 
-    median() %>% 
-    exp()
+  # model to estimate variance components
+  modin <- lm(log(Result) ~ dectime, data = dat)
+  varres <- resid(modin) %>% sd
+  medval <- median(dat$Result, na.rm = T)
   
-  sims <- crossing(
-      thr = seq(log(medv), log(20*medv), length = 20),
-      eff = seq(0.05, 1, length = 20)
+  topval <- qnorm(0.95, medval, varres)
+  
+  grids <- crossing(
+    vals = seq(medval, topval, length.out = 10), 
+    effs = seq(0.1, 1, length.out = 10), 
+    sims = 1:1000,
     ) %>% 
-    group_by(eff, thr) %>% 
+    group_by(vals, effs, sims) %>% 
     mutate(
-      simdat = purrr::map(eff, ~thrvals(dat, eff, sims = 1000))
-    )
-  
-  # get power 
-  thrpow <- sims %>% 
-    group_by(eff, thr) %>% 
-    mutate(
-      pow = purrr::pmap(list(simdat, thr), ~thrfun(simdat, thr))
+      pow = purrr::pmap(list(vals, effs), function(vals, effs, sims){
+        
+        simeff <- nrow(dat) * effs
+        sims <- rnorm(simeff, medval, varres)
+        # browser()
+        # any(sims > vals)
+        pval <- t.test(sims, mu = vals, alternative = 'less')$p.value
+        # pow <- sum(sims > vals) / length(sims)
+        
+        return(pval)
+        
+      })
     ) %>% 
-    select(-simdat) %>%
-    unnest(pow) %>% 
-    ungroup()
+    unnest(pow) %>%
+    group_by(vals, effs) %>% 
+    summarise(pow = mean(pow))
   
-  return(thrpow)
   
 }
 

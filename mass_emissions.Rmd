@@ -43,6 +43,7 @@ thm1 <- theme_bw(base_size = 16) +
   theme(
     strip.background = element_blank(), 
     strip.placement = 'outside', 
+    strip.text = element_text(hjust = 0),
     axis.title.x = element_blank(), 
     legend.title = element_blank(), 
     legend.position = 'bottom', 
@@ -671,26 +672,124 @@ powplo6 <- reactive({
     filter(StationCode %in% stasel) %>% 
     filter(Parameter %in% varsel)
   
-  p <- ggplot(toplo, aes(x = eff, y = thr, z = pow)) +
+  p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
     # geom_tile() +
     geom_contour(aes(colour = stat(level))) +
     scale_colour_viridis_c('Power') +
-    thm2 +
+    # thm2 +
     theme(legend.position = 'none') +
     # scale_x_continuous(limits = c(0, 1)) +
     # scale_y_continuous(limits = c(0, 1)) +
     geom_text_contour() +
     labs(
-      y = paste0('Magnitude of observations above\nthe median for ', varsel),
+      y = paste0('Concentration of ', varsel),
       title = paste0('Power estimates for ', stasel),
       subtitle = 'Lines show power for varying sample effort and thresholds',
       x = 'Relative sample effort'
     )
+
   
   p
   
 })
 
+# comparison of time series for stations
+stapardat2 <- reactive({
+  
+  # inputs
+  stasel2 <- input$stasel2
+  stasel3 <- input$stasel3
+  varsel2 <- input$varsel2
+
+  out <- medat %>% 
+    filter(StationCode %in% c(stasel2, stasel3)) %>% 
+    mutate(
+      Detection = case_when(
+        Qualifier %in% '<' ~ 'below detection', 
+        T ~ 'within range'
+      ),
+      Year = year(Date), 
+      Month = month(Date, label = T), 
+      StationCode = factor(StationCode, levels = c(stasel2, stasel3))
+    ) %>%
+    filter(Parameter %in% varsel2)
+    
+  return(out)
+  
+})
+
+# fourth observed plot
+obsp4 <- reactive({
+  
+  # inputs
+  stapardat2 <- stapardat2()
+  
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+  
+  p <- ggplot(toplo, aes(x = Date, y = Result)) + 
+    geom_line() + 
+    geom_point(aes(colour = Detection)) + 
+    facet_wrap(~StationCode, ncol = 1) + 
+    thm1 + 
+    # scale_y_log10() + 
+    scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      title = ttl, 
+      y = 'Concentration (mg/L)'
+    )
+  
+  return(p)
+  
+})
+
+# fifth observed plot
+obsp5 <- reactive({
+  
+  # inputs
+  stapardat2 <- stapardat2()
+  
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+
+  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) + 
+    geom_boxplot() + 
+    facet_wrap(~StationCode, ncol = 1) + 
+    thm1 +
+    # scale_y_log10() + 
+    # scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      title = paste(ttl, 'by year'), 
+      y = 'Concentration (mg/L)'
+    )
+
+  return(p)
+  
+})
+
+# sixth observed plot
+obsp6 <- reactive({
+  
+  # inputs
+  stapardat2 <- stapardat2()
+  
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+
+  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) + 
+    geom_boxplot() + 
+    facet_wrap(~StationCode, ncol = 1) + 
+    thm1 +
+    # scale_y_log10() + 
+    # scale_colour_manual(values = c('tomato1', 'black')) + 
+    labs(
+      title = paste(ttl, 'by month'), 
+      y = 'Concentration (mg/L)'
+    )
+
+  return(p)
+  
+})
 ```
 
 ## Inventory {.tabset .tabset-pills}
@@ -840,7 +939,7 @@ renderPlot({powplo5()}, height = 550, width = 900)
 Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above).
 
 ```{r}
-renderPlot({powplo6()}, height = 650, width = 900)
+# renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
@@ -1065,4 +1164,24 @@ combined <- dissim$sitplo[[1]] + dissim$sitplo[[2]] + dissim$sitplo[[3]] + dissi
 combined + plot_layout(guides = "collect")
 ```
 
+```{r}
+column(12, 
+  column(4, 
+       selectInput('stasel2', 'Select first station:', choices = unique(pows$sta), selected = 'SDMF05')
+  ), 
+  column(4, 
+       selectInput('stasel3', 'Select second station:', choices = unique(pows$sta), selected = 'SADF01')
+  ), 
+  column(4, 
+       selectInput('varsel2', 'Select constituent:', choices = nuts, selected = 'Nitrate, Nitrite')
+  )
+)
+```
 
+Observed time series for selected stations and constituent.
+
+```{r}
+renderPlot({obsp4()}, height = 550, width = 700)
+renderPlot({obsp5()}, height = 550, width = 700)
+renderPlot({obsp6()}, height = 550, width = 700)
+```

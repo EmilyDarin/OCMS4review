@@ -314,7 +314,7 @@ displo <- reactive({
   
   # input
   dissel <- input$dissel
-  browser()
+  
   out <- dissim %>% 
     filter(Parameter %in% dissel) %>% 
     pull(sitplo)
