@@ -52,15 +52,26 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
 data(medat)
 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+organs <- c("Azinphos methyl (Guthion)", "Bolstar", "Chlorpyrifos", "Coumaphos", 
+            "Demeton-o", "Demeton-s", "Diazinon", "Dichlorvos", "Dimethoate", 
+            "Disulfoton", "Ethoprop", "Ethyl Parathion", "Fensulfothion", 
+            "Fenthion", "GLYP", "Malathion", "Merphos", "Mevinphos", 
+            "Parathion-methyl", "Phorate", "Ronnel", "Tetrachlorovinphos", 
+            "Tokuthion", "Trichloronate")
+nutrs <- c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')
+
 powdat <- medat %>% 
-  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')) %>% 
+  filter(Parameter %in% c(metals, organs, nutrs)) %>% 
   mutate(
     Parameter = case_when(
       Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
       Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
       Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
-      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus'
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+      T ~ Paramaeter
     )
   ) 
 
@@ -122,9 +133,19 @@ save(pows,file = here::here('data', 'pows.RData'), compress = 'xz')
 
 data(medat)
 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+organs <- c("Azinphos methyl (Guthion)", "Bolstar", "Chlorpyrifos", "Coumaphos", 
+            "Demeton-o", "Demeton-s", "Diazinon", "Dichlorvos", "Dimethoate", 
+            "Disulfoton", "Ethoprop", "Ethyl Parathion", "Fensulfothion", 
+            "Fenthion", "GLYP", "Malathion", "Merphos", "Mevinphos", 
+            "Parathion-methyl", "Phorate", "Ronnel", "Tetrachlorovinphos", 
+            "Tokuthion", "Trichloronate")
+nutrs <- c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')
+
 # data to eval
 scns <- medat %>% 
-  filter(Parameter %in% c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')) %>% 
+  filter(Parameter %in% c(metals, organs, nutrs)) %>% 
   filter(!StationCode %in% 'SICG03') %>% 
   mutate(
     Parameter = case_when(
@@ -132,7 +153,8 @@ scns <- medat %>%
       Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
       Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
       Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
-      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus'
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+      T ~ Parameter
     ),
     Year = year(Date), 
     Season = yday(Date),
