@@ -790,6 +790,115 @@ obsp6 <- reactive({
   return(p)
   
 })
+
+# dissimilarity data
+disdat <- reactive({
+  
+  # input
+  varsel2 <- input$varsel2
+  
+  dissim <- meprp %>% 
+    filter(Parameter %in% varsel2) %>% 
+    select(-Watershed, -Parameter) %>% 
+    spread(StationCode, Result) %>% 
+    column_to_rownames('Date') %>% 
+    decostand(method = 'log', na.rm = T) %>% 
+    decostand(method= 'standardize', na.rm = T) %>% 
+    rownames_to_column('Date') %>% 
+    gather('StationCode', 'Result', -Date) %>% 
+    spread(Date, Result) %>% 
+    column_to_rownames('StationCode') %>% 
+    vegdist(method = 'euclidean', na.rm = T) %>%
+    as.matrix %>%
+    as.data.frame %>%
+    rownames_to_column('StationCode') %>%
+    gather('StationCode2', 'dist', -StationCode) %>%
+    left_join(siteshd, by = 'StationCode') %>%
+    arrange(Watershed, dist) %>%
+    mutate(
+      Watershed = factor(Watershed, levels = unique(Watershed)),
+      dist = ifelse(StationCode == StationCode2, NA, dist)
+    )
+  
+  return(dissim)
+  
+})
+
+# multivariate comparison plots
+mulplo <- reactive({
+  
+  # input
+  disdat <- disdat()
+  stasel2 <- input$stasel2
+  stasel3 <- input$stasel3
+  varsel2 <- input$varsel2
+  
+  ##
+  # PCA
+  
+  toord <- meprp %>% 
+    spread(Parameter, Result) %>% 
+    na.omit %>%
+    unite('rwnm', StationCode, Date) %>% 
+    column_to_rownames('rwnm')
+  wshd <- toord$Watershed
+  toord <- toord %>% 
+    select(-Watershed) %>% 
+    decostand(method = 'log', na.rm = T) %>% 
+    decostand(method= 'standardize', na.rm = T)
+
+  ord <- toord %>% 
+    prcomp(scale. = T, center = T)
+
+  # station subset
+  vals <- ord$x %>% 
+    as.data.frame %>% 
+    rownames_to_column() %>% 
+    mutate(StationCode = gsub('^(.*)\\_.*$', '\\1', rowname)) %>% 
+    filter(StationCode %in% c(stasel2, stasel3)) %>% 
+    rename(
+      one = PC1, 
+      two = PC2
+    ) %>% 
+    mutate(
+      StationCode = factor(StationCode, levels = c(stasel2, stasel3))
+    )
+
+  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5) + 
+    scale_fill_viridis_d(guide_legend(ncol = 1)) + 
+    geom_point(data = vals, aes(alpha = StationCode), size = 3) +
+    scale_alpha_manual(values = c(0.2, 0.8)) + 
+    theme(
+      legend.position = 'top',
+      legend.title = element_blank(),
+      legend.box = 'vertical'
+      )
+  
+  ##
+  # dissimilarity data and plots
+  outplo <- disdat %>% 
+    filter(StationCode %in% stasel2) %>% 
+    filter(StationCode2 %in% stasel3)
+  
+  subttl <- paste0("Dissimilarity between ", stasel2, " and ", stasel3, " ", round(outplo$dist, 1))
+  
+  p2 <- ggplot(disdat) +
+    geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
+    geom_tile(data = outplo, aes(x = StationCode, y = StationCode2), fill = NA, colour = 'black', size = 2) +
+    scale_x_discrete('', expand = c(0, 0)) +
+    scale_y_discrete('', expand = c(0, 0)) +
+    scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 8, limits = c(0, 16)) +
+    guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
+    ggtitle(varsel2) +
+    labs(
+      title = varsel2, 
+      subtitle = subttl
+    ) +
+    pbase
+
+  p1 + p2 + plot_layout(ncol = 2)
+      
+})
 ```
 
 ## Inventory {.tabset .tabset-pills}
@@ -939,7 +1048,7 @@ renderPlot({powplo5()}, height = 550, width = 900)
 Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above).
 
 ```{r}
-renderPlot({powplo6()}, height = 650, width = 900)
+renderPlot({powplo6()}, height = 350, width = 800)
 ```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
@@ -1061,8 +1170,6 @@ HTML(knitr::kable(totab, format = 'html') %>%
 
 ### Station differences
 
-PCA comparison of all stations, nutrients, and complete time series
-
 ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
 # rename some nutrient parameters
 meprp <- medat %>% 
@@ -1081,87 +1188,10 @@ meprp <- medat %>%
     )
   ) %>% 
   ungroup() 
-  
-toord <- meprp %>% 
-  spread(Parameter, Result) %>% 
-  na.omit %>%
-  unite('rwnm', StationCode, Date) %>% 
-  column_to_rownames('rwnm')
-wshd <- toord$Watershed
-toord <- toord %>% 
-  select(-Watershed) %>% 
-  decostand(method = 'log', na.rm = T) %>% 
-  decostand(method= 'standardize', na.rm = T)
 
-ord <- toord %>% 
-  prcomp(scale. = T, center = T)
-
-ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5) + 
-  scale_fill_viridis_d(guide_legend(ncol = 1)) + 
-  theme(
-    legend.position = 'top',
-    legend.title = element_blank()
-    )
-```
-
-These plots show measures of dissimilarity for each parameter between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
-
-```{r fig.width = 11, fig.height = 9, fig.align = 'center'}
 siteshd <- meprp %>% 
   select(Watershed, StationCode) %>% 
   unique
-
-dissim <- meprp %>% 
-  group_by(Parameter) %>% 
-  nest %>% 
-  mutate(
-    sitcor = purrr::map(data, function(x){
-      
-      disdat <- x %>% 
-        select(-Watershed) %>% 
-        spread(StationCode, Result) %>% 
-        column_to_rownames('Date') %>% 
-        decostand(method = 'log', na.rm = T) %>% 
-        decostand(method= 'standardize', na.rm = T) %>% 
-        rownames_to_column('Date') %>% 
-        gather('StationCode', 'Result', -Date) %>% 
-        spread(Date, Result) %>% 
-        column_to_rownames('StationCode') %>% 
-        vegdist(method = 'euclidean', na.rm = T)
-      
-      toplo <- disdat %>%
-        as.matrix %>%
-        as.data.frame %>%
-        rownames_to_column('StationCode') %>%
-        gather('StationCode2', 'dist', -StationCode) %>%
-        left_join(siteshd, by = 'StationCode') %>%
-        arrange(Watershed, dist) %>%
-        mutate(
-          Watershed = factor(Watershed, levels = unique(Watershed)),
-          dist = ifelse(StationCode == StationCode2, NA, dist)
-        )
-      
-      return(toplo)
-
-    }),
-    sitplo = purrr::pmap(list(Parameter, sitcor), function(Parameter, sitcor){
-      
-      p <- ggplot(sitcor) +
-        geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
-        scale_x_discrete('', expand = c(0, 0)) +
-        scale_y_discrete('', expand = c(0, 0)) +
-        scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 8, limits = c(0, 16)) +
-        guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
-        ggtitle(Parameter) + 
-        pbase
-      
-      return(p)
-      
-    })
-  )
-
-combined <- dissim$sitplo[[1]] + dissim$sitplo[[2]] + dissim$sitplo[[3]] + dissim$sitplo[[4]] + dissim$sitplo[[5]] & theme(legend.position = 'bottom') 
-combined + plot_layout(guides = "collect")
 ```
 
 ```{r}
@@ -1178,10 +1208,30 @@ column(12,
 )
 ```
 
-Observed time series for selected stations and constituent.
+This plot shows a PCA comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
 
 ```{r}
-renderPlot({obsp4()}, height = 550, width = 700)
-renderPlot({obsp5()}, height = 550, width = 700)
-renderPlot({obsp6()}, height = 550, width = 700)
+renderPlot({mulplo()}, height = 700, width = 900)
+```
+
+Observed time series for selected stations and constituent.
+
+#### {.tabset .tabset-pills}
+
+##### Time series
+
+```{r}
+renderPlot({obsp4()}, height = 450, width = 700)
+```
+
+##### By year
+
+```{r}
+renderPlot({obsp5()}, height = 450, width = 700)
+```
+
+##### By month
+
+```{r}
+renderPlot({obsp6()}, height = 450, width = 700)
 ```
