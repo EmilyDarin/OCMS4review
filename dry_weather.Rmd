@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path 
 library(tidyverse)
 library(sf)
 library(mapview)
+library(leaflet)
 library(lubridate)
 library(leafsync)
 library(viridisLite)
@@ -75,6 +76,30 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(dwdat)
+
+# xy locs
+locs <- dwdat %>%
+  select(StationCode, Longitude, Latitude) %>%
+  unique
+
+# date ranges
+dts <- dwdat %>% 
+  pull(Date) %>% 
+  range
+
+# obs ranges per station
+obsrng <- dwdat %>% 
+  group_by(StationCode, Parameter) %>% 
+  summarise(n = n()) %>% 
+  pull(n) %>% 
+  range
+
+# color palette for hotspot exceedances
+hotcol <- colorNumeric(
+  palette = RColorBrewer::brewer.pal(9, 'Reds'),
+  na.color = 'yellow',
+    domain = c(0, obsrng[2])
+  )
 
 # rename some nutrient parameters
 dwdat <- dwdat %>% 
@@ -211,6 +236,117 @@ staplo <- reactive({
   
 })
 
+# median value for selected constituent
+hotmed <- reactive({
+  
+  # input
+  varsel3 <- input$varsel3
+  
+  out <- dwdat %>% 
+    filter(Parameter %in% varsel3) %>% 
+    pull(Result) %>% 
+    na.omit %>% 
+    median 
+  
+  return(out)
+  
+})
+
+# hotspot data
+hotdat <- reactive({
+  
+  # inputs
+  hotmed <- hotmed()
+  cntsel <- input$cntsel
+  varsel3 <- input$varsel3
+  dtssel <- input$dtssel
+
+  # summary for all dates, stations by selected constituent
+  out <- dwdat %>% 
+    filter(Parameter %in% varsel3) %>%
+    group_by(Watershed, StationCode) %>% 
+    mutate(n = n()) %>% 
+    filter(Date >= dtssel[1] & Date <= dtssel[2]) %>%
+    mutate(
+      abv = case_when(
+        Result > hotmed ~ 1, 
+        T ~ 0
+      )
+    ) %>% 
+    summarise(
+      exceeds = sum(abv),
+      n = unique(n)
+      ) %>% 
+    ungroup() %>% 
+    mutate(
+      cols = hotcol(exceeds), 
+      cexs = scales::rescale(exceeds, to = c(4, 17), from = obsrng)
+    ) %>% 
+    select(Watershed, StationCode, exceeds, n, cols, cexs) %>% 
+    filter(n >= cntsel[1] & n <= cntsel[2]) %>% 
+    unique
+  
+  return(out)
+  
+})
+
+# map of exceedances
+hotmap <- reactive({
+  
+  # input
+  hotdat <- hotdat()
+  hotmed <- hotmed()
+  
+  tomap <- hotdat %>%
+    left_join(locs, by = 'StationCode') %>%
+    st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+
+  # hover pt labels
+  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' exceeding, ', tomap$n, ' total obs.')
+  leglab <- "No. exceedances"
+  
+  mapviewOptions(leafletHeight = 400)
+
+  m <- mapview(tomap, zcol = 'n', cex = tomap$cexs, label = labs, legend = F, layer.name = F, col.regions = tomap$cols, homebutton = F, map.types = mptyps)
+  
+  # add legend
+  out <- m@map %>% 
+    addLegend("bottomright", pal = hotcol, title = leglab, opacity = 1, values = tomap$exceeds) 
+  
+  return(out)
+  
+})
+
+# plot of hotspots by watershed
+hotplo <- reactive({
+  
+  # input
+  hotdat <- hotdat()
+  dtssel <- input$dtssel
+  
+  toplo <- hotdat %>% 
+    arrange(Watershed, exceeds) %>% 
+    mutate(StationCode = factor(StationCode, levels = .$StationCode))
+
+  ylab <- paste0("Number of exceedances above the median\nfrom ", as.character(dtssel[1]), ' to ', as.character(dtssel[2]))
+  
+  p <- ggplot(toplo, aes(x = StationCode, y = exceeds)) + 
+    geom_bar(stat = 'identity', fill = toplo$cols, color = 'grey') + 
+    facet_grid(~ Watershed, scales = 'free_x', space = 'free_x') + 
+    thm1 + 
+    theme(
+      axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
+    ) + 
+    scale_y_continuous(limits = c(0, obsrng[2])) + 
+    labs(
+      y = ylab
+    )
+
+  return(p)
+  
+})
+
+# watershed and parameter data for observed plots
 wshpardat <- reactive({
 
   # inputs
@@ -422,20 +558,6 @@ obsp3 <- reactive({
   
   return(p)
 
-})
-
-# dissimilarity plot
-displo <- reactive({
-  
-  # input
-  dissel <- input$dissel
-  
-  out <- dissim %>% 
-    filter(Parameter %in% dissel) %>% 
-    pull(sitplo)
-  
-  return(out)
-  
 })
 ```
 
@@ -655,6 +777,33 @@ renderUI({statab()})
 renderPlot({staplo()}, height = 500, width = 700)
 ```
 
+## Hotspots {.tabset .tabset-pills}
+
+```{r}
+column(12, 
+       column(4, 
+              selectInput('varsel3', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+       ),
+       column(8, 
+              sliderInput('dtssel', 'Select date range:', min = dts[1], max = dts[2], value = dts, timeFormat="%Y-%m", width = '600px')
+       )
+)
+column(12,
+       column(4, NULL),
+       column(8,
+              sliderInput('cntsel', 'Filter stations by total n:', min = 0, max = obsrng[2], value = c(0, obsrng[2]), width = '600px')
+       )
+)
+```
+
+Map shows number of exceedances of each station above the median value across all dates/stations for `r renderText({input$varsel3})` (`r renderText({round(hotmed(), 1)})`)
+```{r}
+renderLeaflet(hotmap())
+```
+
+```{r}
+renderPlot(hotplo(), height = 450, width = 900)
+```
 
 ## Analyses by watershed {.tabset .tabset-pills}
 
@@ -701,7 +850,6 @@ column(12,
                 
                 selectInput('thrsel', 'Select threshold as quantile:', choices = qntval, selected = qntval[10])
                 # sliderInput('thrsel', 'Select threshold:', min = rngval[1], max = rngval[2], value = qntval, width = '600px')
-
                 
               })
         )
@@ -720,117 +868,3 @@ plotlyOutput('obsp1', height = "400px", width = "900px")
 plotlyOutput('obsp2', height = "400px", width = "900px")
 plotlyOutput('obsp3', height = "400px", width = "900px")
 ```
-
-
-## All Station comparisons {.tabset .tabset-pills}
-
-### Station differences
-
-PCA comparison of all sites, top ten sampled parameters, and complete time series
-
-```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
-dwprp <- dwdat %>% 
-  filter(Parameter %in% tops) %>% 
-  mutate(
-    Date = floor_date(Date, unit = 'month')
-  ) %>% 
-  select(Watershed, StationCode, Date, Parameter, Result) %>% 
-  group_by(Watershed, StationCode, Date, Parameter) %>% 
-  summarise(Result = mean(Result, na.rm = T)) %>% 
-  group_by(StationCode, Parameter) %>% 
-  mutate(Result = case_when(
-    is.na(Result) ~ mean(Result, na.rm = T), 
-    T ~ Result
-    )
-  ) %>% 
-  ungroup() 
-  
-toord <- dwprp %>% 
-  spread(Parameter, Result) %>% 
-  na.omit %>%
-  unite('rwnm', StationCode, Date) %>% 
-  column_to_rownames('rwnm')
-wshd <- toord$Watershed
-toord <- toord %>% 
-  select(-Watershed) %>% 
-  decostand(method = 'log', na.rm = T) %>%
-  decostand(method= 'standardize', na.rm = T)
-
-ord <- toord %>% 
-  prcomp(scale. = T, center = T)
-
-ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 12, repel = T) + 
-  scale_fill_viridis_d(guide_legend(ncol = 1)) + 
-  theme(
-    legend.position = 'top',
-    legend.title = element_blank()
-    )
-```
-
-These plots show measures of dissimilarity for each parameter between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
-
-```{r}
-selectInput('dissel', 'Select Parameter:', choices = tops)
-```
-
-```{r}
-siteshd <- dwprp %>% 
-  select(Watershed, StationCode) %>% 
-  unique
-
-dissim <- dwprp %>% 
-  group_by(Parameter) %>% 
-  nest %>% 
-  mutate(
-    sitcor = purrr::map(data, function(x){
-      
-      disdat <- x %>% 
-        select(-Watershed) %>% 
-        spread(StationCode, Result) %>% 
-        column_to_rownames('Date') %>% 
-        decostand(method = 'log', na.rm = T) %>% 
-        decostand(method= 'standardize', na.rm = T) %>% 
-        rownames_to_column('Date') %>% 
-        gather('StationCode', 'Result', -Date) %>% 
-        spread(Date, Result) %>% 
-        column_to_rownames('StationCode') %>% 
-        vegdist(method = 'euclidean', na.rm = T)
-      
-      toplo <- disdat %>%
-        as.matrix %>%
-        as.data.frame %>%
-        rownames_to_column('StationCode') %>%
-        gather('StationCode2', 'dist', -StationCode) %>%
-        left_join(siteshd, by = 'StationCode') %>%
-        arrange(Watershed, dist) %>%
-        mutate(
-          Watershed = factor(Watershed, levels = unique(Watershed)),
-          dist = ifelse(StationCode == StationCode2, NA, dist)
-        )
-      
-      return(toplo)
-
-    }),
-    sitplo = purrr::pmap(list(Parameter, sitcor), function(Parameter, sitcor){
-      
-      p <- ggplot(sitcor) +
-        geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
-        scale_x_discrete('', expand = c(0, 0)) +
-        scale_y_discrete('', expand = c(0, 0)) +
-        scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 5.5, limits = c(0, 11)) +
-        guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
-        ggtitle(Parameter) + 
-        pbase
-      
-      return(p)
-      
-    })
-  )
-
-output$displo <- renderPlot({displo()})
-plotOutput('displo', height = "900px", width = "900px")
-# combined <- dissim$sitplo[[1]] + dissim$sitplo[[2]] + dissim$sitplo[[3]] + dissim$sitplo[[4]] + dissim$sitplo[[5]] & dissim$sitplo[[6]] + dissim$sitplo[[7]] + dissim$sitplo[[8]] + dissim$sitplo[[9]] + dissim$sitplo[[10]] & theme(legend.position = 'bottom') 
-# combined + plot_layout(guides = "collect", ncol = 2)
-```
-
-
