@@ -676,9 +676,9 @@ powplo6 <- reactive({
     # geom_tile() +
     geom_contour(aes(colour = stat(level))) +
     scale_colour_viridis_c('Power') +
-    # thm2 +
+    thm2 +
     theme(legend.position = 'none') +
-    # scale_x_continuous(limits = c(0, 1)) +
+    scale_x_continuous(limits = c(0, 1)) +
     # scale_y_continuous(limits = c(0, 1)) +
     geom_text_contour() +
     labs(
@@ -939,7 +939,7 @@ renderPlot({powplo5()}, height = 550, width = 900)
 Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above).
 
 ```{r}
-# renderPlot({powplo6()}, height = 650, width = 900)
+renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}

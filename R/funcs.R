@@ -165,20 +165,3 @@ powfun <- function(simdat, alpha = 0.05){
   return(pow)
   
 }
-
-# get likelihood of observing a value above threshold
-thrfun <- function(simdat, thr = 5){
-
-  threst <- simdat %>%
-    .[[1]] %>% 
-    mutate(simrand = exp(simrand)) %>%
-    group_by(sims) %>% 
-    summarise(
-      pval = t.test(simrand, mu = thr, alternative = 'less')$p.value,
-    ) 
-
-  pow <- mean(threst$pval) #sum(threst$pval >= 0.05) / nrow(threst)
-
-  return(pow)
-
-}

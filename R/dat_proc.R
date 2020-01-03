@@ -192,7 +192,6 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     group_by(vals, effs) %>% 
     summarise(pow = mean(pow))
   
-  
 }
 
 # combine results with scns
