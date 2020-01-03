@@ -64,8 +64,8 @@ pbase <- theme_bw(base_family = 'serif') +
   theme(
     panel.grid.major = element_blank(), 
     panel.grid.minor = element_blank(), 
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6), 
-    axis.text.y = element_text(size = 6),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 12), 
+    axis.text.y = element_text(size = 12),
     legend.position = 'top',
     legend.direction = 'horizontal',
     # plot.margin = unit(c(4,4,0,0), "lines"),
@@ -96,6 +96,121 @@ tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 ```
 
 ```{r reactives}
+# tabular inventory by station, parameter
+statab <- reactive({
+  
+  # input
+  wshsel2 <- input$wshsel2
+  varsel2 <- input$varsel2
+  tabsel <- input$tabsel
+  
+  dat <- dwdat %>% 
+    filter(Watershed %in% wshsel2) %>% 
+    filter(Parameter %in% varsel2)
+  
+  if(tabsel == 'by year'){
+    
+    sums <- dat %>% 
+      mutate(Year = as.character(year(Date))) %>% 
+      count(Year, StationCode) %>% 
+      bind_rows(group_by(., Year) %>%
+                  summarise(n = sum(n)) %>%
+                  mutate(StationCode = 'Total')) %>%
+      bind_rows(group_by(., StationCode) %>%
+                  summarise(n=sum(n)) %>%
+                  mutate(Year = 'Total')) %>%
+      spread(Year,n,fill=0)
+
+  }
+
+  if(tabsel == 'by month'){
+    
+    sums <- dat %>% 
+      mutate(Month = month(Date, label = TRUE)) %>% 
+      count(Month, StationCode) %>% 
+      bind_rows(group_by(., Month) %>%
+                  summarise(n = sum(n)) %>%
+                  mutate(StationCode = 'Total')) %>%
+      bind_rows(group_by(., StationCode) %>%
+                  summarise(n=sum(n)) %>%
+                  mutate(Month = 'Total')) %>%
+      mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Total"))) %>%
+      spread(Month,n,fill=0)
+    
+  }
+  
+  alltot <- sums %>% 
+    filter(StationCode != 'Total')
+  coltot <- sums %>% 
+    filter(StationCode == 'Total')
+
+  totab <- bind_rows(alltot, coltot)
+
+  tab <- HTML(knitr::kable(totab, format = 'html', caption = paste(varsel2, tabsel)) %>% 
+       kable_styling(full_width = T, font_size = 14))
+    
+  
+  return(tab)
+  
+})
+
+# plot inventory by station, parameter
+staplo <- reactive({
+  
+  # input
+  wshsel2 <- input$wshsel2
+  varsel2 <- input$varsel2
+  tabsel <- input$tabsel
+  
+  dat <- dwdat %>% 
+    filter(Watershed %in% wshsel2)
+
+  if(tabsel == 'by year'){
+    
+    colrng = c(0, 7)
+    
+    sums <- dat %>% 
+      mutate(Year = as.character(year(Date))) %>% 
+      count(Year, StationCode, Parameter) %>% 
+      mutate(Year = factor(Year, levels = c(2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019))) %>% 
+      complete(Year, StationCode, Parameter, fill = list(n = 0)) %>% 
+      filter(Parameter %in% varsel2) %>% 
+      rename(x = Year)
+
+  }
+
+  if(tabsel == 'by month'){
+    
+    colrng <- c(0, 12)
+    
+    sums <- dat %>% 
+      mutate(Month = month(Date, label = TRUE)) %>% 
+      count(Month, StationCode, Parameter) %>% 
+      mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep"))) %>% 
+      tidyr::complete(Month, StationCode, Parameter, fill = list(n = 0)) %>% 
+      filter(Parameter %in% varsel2) %>% 
+      rename(x = Month)
+    
+  }
+  
+  toplo <- sums %>% 
+    mutate(StationCode = factor(StationCode, levels = rev(unique(StationCode))))
+  txtplo <- toplo %>% 
+    filter(n > 0)
+
+  p <- ggplot(toplo) +
+    geom_tile(aes(x = x, y = StationCode, fill = n), colour = 'black') +
+    geom_text(data = txtplo, aes(x = x, y = StationCode, label = n)) + 
+    scale_x_discrete('', expand = c(0, 0)) +
+    scale_y_discrete('', expand = c(0, 0)) +
+    scale_fill_gradientn('Number of samples', colors = RColorBrewer::brewer.pal(9, 'BuGn'), limits = colrng) +
+    guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
+    pbase
+  
+  return(p)
+  
+})
+
 wshpardat <- reactive({
 
   # inputs
@@ -360,7 +475,7 @@ m3a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F
 leafsync::sync(m1a, m2a, m3a, ncol = 1) 
 ```
 
-### Tables
+### Tables, by watershed
 
 ```{r toptab}
 sums <- dwdat %>% 
@@ -507,6 +622,39 @@ totab <- bind_rows(alltot, coltot)
 HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by month") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
+
+
+### By Site
+
+```{r}
+column(12, 
+       column(4, 
+              selectInput('wshsel2', 'Select watershed:', choices = unique(dwdat$Watershed))
+       ),
+       column(4, 
+              selectInput('varsel2', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+              ),
+       column(4, 
+              selectInput('tabsel', 'Select table:', choices = c('by year', 'by month'))
+       )
+)
+```
+
+
+#### {.tabset .tabset-pills}
+
+##### Table 
+
+```{r}
+renderUI({statab()})
+```
+
+##### Plot 
+
+```{r}
+renderPlot({staplo()}, height = 500, width = 700)
+```
+
 
 ## Analyses by watershed {.tabset .tabset-pills}
 

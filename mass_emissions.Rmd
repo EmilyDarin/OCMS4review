@@ -889,7 +889,6 @@ mulplo <- reactive({
     scale_y_discrete('', expand = c(0, 0)) +
     scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 8, limits = c(0, 16)) +
     guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
-    ggtitle(varsel2) +
     labs(
       title = varsel2, 
       subtitle = subttl
@@ -1048,7 +1047,7 @@ renderPlot({powplo5()}, height = 550, width = 900)
 Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above).
 
 ```{r}
-renderPlot({powplo6()}, height = 350, width = 800)
+renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
 ## Nitrogen analyses, all stations {.tabset .tabset-pills}
@@ -1211,7 +1210,7 @@ column(12,
 This plot shows a PCA comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
 
 ```{r}
-renderPlot({mulplo()}, height = 700, width = 900)
+renderPlot({mulplo()}, height = 550, width = 900)
 ```
 
 Observed time series for selected stations and constituent.
