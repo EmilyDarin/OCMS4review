@@ -101,22 +101,8 @@ hotcol <- colorNumeric(
     domain = c(0, obsrng[2])
   )
 
-# rename some nutrient parameters
-dwdat <- dwdat %>% 
-  mutate(
-    Parameter = case_when(
-      Parameter %in% c('AmmoniaN', 'AmmoniaAsN') ~ 'Ammonia', 
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
-      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
-      Parameter %in% 'NitrateAsN' ~ 'Total Nitrogen',
-      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
-      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
-      T ~ Parameter
-    )
-  ) 
-
 # nutrients and top ten parameters
-nuts <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Total Nitrogen', 'Orthophosphate', 'Total Phosphorus')
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Total Nitrogen', 'Orthophosphate', 'Total Phosphorus')
 tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 ```
 
@@ -674,7 +660,7 @@ HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by month
 
 ```{r nuttab}
 sums <- dwdat %>% 
-  filter(Parameter %in% nuts) %>% 
+  filter(Parameter %in% nutrs) %>% 
   count(Parameter, Watershed) %>% 
   bind_rows(group_by(., Parameter) %>%
               summarise(n=sum(n)) %>%
@@ -683,7 +669,7 @@ sums <- dwdat %>%
               summarise(n=sum(n)) %>%
               mutate(Parameter='Total')) %>%
   spread(Parameter,n,fill=0) %>% 
-  select_at(c('Watershed', nuts, 'Total'))
+  select_at(c('Watershed', nutrs, 'Total'))
 
 alltot <- sums %>% 
   filter(Watershed != 'Total')
@@ -699,7 +685,7 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients") %>%
 ```{r nuttabyr}
 sums <- dwdat %>% 
   mutate(Year = as.character(year(Date))) %>% 
-  filter(Parameter %in% nuts) %>% 
+  filter(Parameter %in% nutrs) %>% 
   count(Year, Watershed) %>% 
   bind_rows(group_by(., Year) %>%
               summarise(n = sum(n)) %>%
@@ -723,7 +709,7 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by year") %>%
 ```{r nuttabmo}
 sums <- dwdat %>% 
   mutate(Month = month(Date, label = T)) %>% 
-  filter(Parameter %in% nuts) %>% 
+  filter(Parameter %in% nutrs) %>% 
   count(Month, Watershed) %>% 
   bind_rows(group_by(., Month) %>%
               summarise(n = sum(n)) %>%
@@ -754,7 +740,7 @@ column(12,
               selectInput('wshsel2', 'Select watershed:', choices = unique(dwdat$Watershed))
        ),
        column(4, 
-              selectInput('varsel2', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+              selectInput('varsel2', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
               ),
        column(4, 
               selectInput('tabsel', 'Select table:', choices = c('by year', 'by month'))
@@ -782,7 +768,7 @@ renderPlot({staplo()}, height = 500, width = 700)
 ```{r}
 column(12, 
        column(4, 
-              selectInput('varsel3', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+              selectInput('varsel3', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
        ),
        column(8, 
               sliderInput('dtssel', 'Select date range:', min = dts[1], max = dts[2], value = dts, timeFormat="%Y-%m", width = '600px')
@@ -813,7 +799,7 @@ column(12,
               selectInput('wshsel', 'Select watershed:', choices = unique(dwdat$Watershed))
        ),
        column(4,
-               selectInput('varsel', 'Select constituent:', choices = c(tops, nuts), selected = 'ENT')
+               selectInput('varsel', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
        ), 
        column(4, 
               renderUI({

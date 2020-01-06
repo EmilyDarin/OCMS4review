@@ -15,7 +15,16 @@ dw_parm <- read.csv(here::here('data/raw', 'DWM_PARAMETER.csv'), stringsAsFactor
 dwdat <- dw_dat %>% 
   mutate(
     Date = ymd_hms(Date, tz = 'Pacific/Pitcairn'), 
-    Date = as.Date(Date)
+    Date = as.Date(Date),
+    Parameter = case_when(
+      Parameter %in% c('AmmoniaN', 'AmmoniaAsN') ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter %in% 'NitrateAsN' ~ 'Total Nitrogen',
+      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+      T ~ Parameter
+    )
   ) %>% 
   rename(StationCode = Station) %>% 
   inner_join(dw_stat, by = c('StationCode', 'Watershed')) %>% 
@@ -39,7 +48,15 @@ me_parm <- read.csv(here::here('data/raw', 'ME_PARAMETER.csv'), stringsAsFactors
 medat <- me_dat %>% 
   mutate(
     Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
-    Date = as.Date(Date)
+    Date = as.Date(Date), 
+    Parameter = case_when(
+      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
+      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+      T ~ Parameter
+    )
   ) %>% 
   rename(StationCode = Station) %>% 
   inner_join(me_stat, by = c('StationCode', 'Watershed')) %>% 
@@ -59,20 +76,10 @@ organs <- c("Azinphos methyl (Guthion)", "Bolstar", "Chlorpyrifos", "Coumaphos",
             "Fenthion", "GLYP", "Malathion", "Merphos", "Mevinphos", 
             "Parathion-methyl", "Phorate", "Ronnel", "Tetrachlorovinphos", 
             "Tokuthion", "Trichloronate")
-nutrs <- c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus')
 
 powdat <- medat %>% 
-  filter(Parameter %in% c(metals, organs, nutrs)) %>% 
-  mutate(
-    Parameter = case_when(
-      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
-      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
-      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
-      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
-      T ~ Parameter
-    )
-  ) 
+  filter(Parameter %in% c(metals, organs, nutrs))
 
 # simdat <- simvals(powdat, chg = 0.5, eff = 1, sims = 1000)
 # 
@@ -149,21 +156,13 @@ organs <- c("Azinphos methyl (Guthion)", "Bolstar", "Chlorpyrifos", "Coumaphos",
             "Fenthion", "GLYP", "Malathion", "Merphos", "Mevinphos", 
             "Parathion-methyl", "Phorate", "Ronnel", "Tetrachlorovinphos", 
             "Tokuthion", "Trichloronate")
-nutrs <- c('AmmoniaN', 'NitrateNitriteNO3', 'TKN', 'OrthoPhosphateP', 'TotalPhosphorusPO4')
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus')
 
 # data to eval
 scns <- medat %>% 
   filter(Parameter %in% c(metals, organs, nutrs)) %>% 
   filter(!StationCode %in% 'SICG03') %>% 
   mutate(
-    Parameter = case_when(
-      Parameter %in% 'AmmoniaN' ~ 'Ammonia', 
-      Parameter %in% 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite', 
-      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
-      Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
-      Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
-      T ~ Parameter
-    ),
     Year = year(Date), 
     Season = yday(Date),
     dectime = decimal_date(Date)
