@@ -195,7 +195,11 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     return(NA)
   
   # model to estimate variance components
-  modin <- lm(log(Result) ~ dectime, data = dat)
+  modin <- try({lm(log(Result) ~ dectime, data = dat)})
+  
+  if(inherits(modin, 'try-error'))
+    return(NA)
+  
   varres <- resid(modin) %>% sd
   medval <- median(dat$Result, na.rm = T)
   
