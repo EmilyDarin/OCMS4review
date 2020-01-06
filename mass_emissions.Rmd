@@ -93,12 +93,12 @@ nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosp
 invtab <- reactive({
   
   # input
-  consel <- input$consel
+  consel1 <- input$consel1
   tabtyp <- input$tabtyp
 
 
   # filter by parameters
-  tofilt <- eval(parse(text = consel))
+  tofilt <- eval(parse(text = consel1))
   sums <- medat %>% 
     filter(Parameter %in% tofilt)
   
@@ -247,11 +247,9 @@ trnddat <- reactive({
   # input
   stapardat <- stapardat()
   
-  out <- stapardat %>%
+  out <- try({stapardat %>%
     group_by(Parameter, Year) %>%
     summarise(
-      confint = t.test(Result)$conf.int %>% range %>% diff,
-      confint = confint / 2,
       Result = mean(Result, na.rm = T),
     ) %>%
     group_by(Parameter) %>%
@@ -264,6 +262,7 @@ trnddat <- reactive({
       avg = round(avg, 2),
       Parameter = paste0(Parameter, ' (', avg, ')')
     )
+  })
   
   return(out)
   
@@ -276,11 +275,14 @@ trndp1 <- reactive({
   trnddat <- trnddat()
   stasel <- input$stasel
   
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
+  
   subttl <- paste0(stasel, ', average in parentheses on y-axis')
   
   p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
     geom_bar(stat = 'identity', colour = 'grey') +
-    # geom_errorbar(aes(ymin = dev - confint, ymax = dev + confint), width = 0) +
     scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
     thm1 +
@@ -304,6 +306,10 @@ trndtab1 <- reactive({
   
   # input
   trnddat <- trnddat()
+  
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
   
   mods <- trnddat %>%
     group_by(Parameter) %>%
@@ -990,7 +996,7 @@ leafsync::sync(m1a, m2a, m3a, ncol = 1)
 ```{r}
 column(12, 
        column(4,
-         selectInput('consel', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'Nutrients') 
+         selectInput('consel1', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'Nutrients') 
        ),
        column(4, 
          selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Variance'))
@@ -1007,10 +1013,35 @@ renderUI(invtab())
 ```{r}
 column(12, 
   column(4, 
-       selectInput('stasel', 'Select station:', choices = unique(pows$sta), selected = 'SDMF05')
+       selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'Nutrients')
+  ),
+  column(4, 
+       renderUI({
+       
+         req(input$varsel)
+         
+         # input
+         varsel <- input$varsel
+         
+         sels <- medat %>% 
+           filter(Parameter %in% varsel) %>% 
+           pull(StationCode) %>% 
+           unique
+         
+         selectInput('stasel', 'Select station:', choices = sels)  
+         
+       })
   ), 
   column(4, 
-       selectInput('varsel', 'Select constituent:', choices = nutrs, selected = 'Nitrate, Nitrite')
+       renderUI({
+       
+         # input
+         consel2 <- input$consel2
+         
+         sels <- eval(parse(text = consel2))
+         selectInput('varsel', 'Select constituent:', choices = sels)
+         
+       })
   )
 )
 ```
