@@ -1,2 +1,2 @@
-75 of 75 
-Time difference of 28.40084 mins
+60000 of 60000 
+Time difference of 3.624527 hours

@@ -47,7 +47,6 @@ medat <- me_dat %>%
 
 save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
-
 # power analysis for trends -----------------------------------------------
 
 data(medat)
@@ -71,7 +70,7 @@ powdat <- medat %>%
       Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen',
       Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
       Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
-      T ~ Paramaeter
+      T ~ Parameter
     )
   ) 
 
@@ -116,8 +115,17 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
     filter(StationCode %in% sta) %>% 
     filter(Parameter %in% par)
   
-  simdat <- simvals(topow, chg = chg, eff = eff, sims = 1000)
-  powfun(simdat)
+  simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
+  
+  if(inherits(simdat, 'try-error'))
+    return(NA)
+  
+  out <- try({powfun(simdat)})
+  
+  if(inherits(out, 'try-error'))
+    return(NA)
+  
+  return(out)
   
 }
 
@@ -183,6 +191,10 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     .[[1]] %>% 
     .[[1]]
   
+  # if no variation return NA
+  if(length(unique(dat$Result)) == 1)
+    return(NA)
+  
   # model to estimate variance components
   modin <- lm(log(Result) ~ dectime, data = dat)
   varres <- resid(modin) %>% sd
@@ -213,6 +225,8 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
     unnest(pow) %>%
     group_by(vals, effs) %>% 
     summarise(pow = mean(pow))
+  
+  return(grids)
   
 }
 
