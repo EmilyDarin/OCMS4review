@@ -165,3 +165,39 @@ powfun <- function(simdat, alpha = 0.05){
   return(pow)
   
 }
+
+# optimal sample effort
+# datin is power results for one station, one parameter
+# pow is desired level of power
+getopt <- function(datin, pow = 0.5){
+  
+  p <- ggplot(datin) +
+    geom_contour(aes(x = eff, y = chg, z = pow), breaks = pow) 
+  
+  dat <- ggplot_build(p)$data[[1]]
+  
+  if(nrow(dat) == 0)
+    return(NA)
+  
+  # check if multiple pieces
+  if(length(unique(dat$piece)) > 1)
+    return(NA)
+  
+  dat <- dat %>% 
+    arrange(x)
+  
+  # check if not monotonic
+  chk <- diff(dat$y)
+  if(any(sign(chk) == 1))
+    return(NA)
+  
+  slopey <- diff(dat$y) / diff(dat$x)
+  slopex <- diff(dat$x) / diff(dat$y)
+  loc <- which(slopey > slopex)[1]
+  
+  out <- dat[loc + 1, ] %>% 
+    dplyr::select(eff = x, chg = y)
+  
+  return(out)
+  
+}

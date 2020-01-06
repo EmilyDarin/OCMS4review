@@ -237,6 +237,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
 thrs <- scns %>% 
   bind_cols(enframe(res)) %>% 
   select(-data, -name) %>%   
-  unnest(value)
+  unnest(value) %>% 
+  select(-value)
     
 save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')
