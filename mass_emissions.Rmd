@@ -740,7 +740,7 @@ powplo6 <- reactive({
     labs(
       y = paste0('Concentration of ', varsel),
       title = paste0('Power estimates for ', stasel),
-      subtitle = 'Lines show power for varying sample effort and thresholds',
+      subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
       x = 'Relative sample effort'
     )
 
@@ -1116,7 +1116,7 @@ column(12,
 
 ### Observed
 
-Observed time series for major nitrogen constituents.
+Observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`.
 
 ```{r}
 renderPlot({obsp1()}, height = 350, width = 700)
@@ -1158,19 +1158,19 @@ The observed time series for `r renderText({input$varsel})` at `r renderText({in
 renderPlot({powplo1()}, height = 350, width = 900)
 ```
 
-This plot shows 100 simulated time series of nitrogen trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 10\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the top right, a trend of 10\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. In the bottom left, a trend of 90\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities.
+This plot shows 20 simulated time series of `r renderText(input$varsel)` trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 30\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the top right, a trend of 30\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities.
 
 ```{r}
 renderPlot({powplo2()}, height = 550, width = 900)
 ```
 
-This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). Power is low for very small trends regardless of sample effort, whereas power is generally high for larger trends until effort falls below 40-50% of actual.
+This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above).
 
 ```{r}
 renderPlot({powplo3()}, height =650, width = 900)
 ```
 
-An alternative power analysis was conducted to identify the ability to observe an exceedance for a nitrogen concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Overall, ability to detect an exceedance decreases with less frequency sampling and higher exceedance values.  The plots below show examples using simulated time series from the observed data at SDMF05.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 5 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 5 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.
+An alternative power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 1 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 10 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.
 
 ```{r}
 renderPlot({powplo4()}, height = 550, width = 900)
@@ -1191,9 +1191,9 @@ renderPlot({powplo6()}, height = 650, width = 900)
 
 ### Optimal sample effort
 
-Optimal sample effort was determined for all stations and a selected constituent (`r renderText({input$varsel})`).  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).   
+Optimal sample effort was determined for all stations and a selected constituent (`r renderText({input$varsel})`) using power results for the ability to detect a specified trend (first power analysis).  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).   
 
-The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in x (sample effort) caused disproportionate increases in y (magnitude of the trend to detect for the desired power).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the optimal level of the median value across all stations. 
+The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the trend (y) for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations. 
 
 ```{r}
 column(12, 
