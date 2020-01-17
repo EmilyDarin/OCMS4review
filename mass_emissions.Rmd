@@ -139,6 +139,17 @@ invtab <- reactive({
     
   }
   
+  if(tabtyp == 'Median absolute deviation'){
+    
+    totab <- sums %>% 
+      group_by(Parameter, StationCode) %>% 
+      summarise(md = round(mad(Result, na.rm = T), 2)) %>% 
+      spread(Parameter, md, fill = NA)
+    
+    cap <- 'Median absolute deviation at each site'
+    
+  }
+  
   HTML(knitr::kable(totab, format = 'html', caption = cap) %>% 
       kable_styling(full_width = T, font_size = 14))  
     
@@ -853,13 +864,15 @@ disdat <- reactive({
   # input
   varsel2 <- input$varsel2
   
+  req(varsel2)
+browser()
   dissim <- meprp %>% 
     filter(Parameter %in% varsel2) %>% 
     select(-Watershed, -Parameter) %>% 
     spread(StationCode, Result) %>% 
     column_to_rownames('Date') %>% 
     decostand(method = 'log', na.rm = T) %>% 
-    decostand(method= 'standardize', na.rm = T) %>% 
+    decostand(method= 'standardize', na.rm = T) %>%
     rownames_to_column('Date') %>% 
     gather('StationCode', 'Result', -Date) %>% 
     spread(Date, Result) %>% 
@@ -888,11 +901,20 @@ mulplo <- reactive({
   stasel2 <- input$stasel2
   stasel3 <- input$stasel3
   varsel2 <- input$varsel2
+  consel3 <- input$consel3
+  
+  req(varsel2)
   
   ##
   # PCA
-  
+         
+  if(consel3 == 'organs')
+    sels <- c('GLYP', 'Malathion')
+  else 
+    sels <- eval(parse(text = consel3))
+           
   toord <- meprp %>% 
+    filter(Parameter %in% !!sels) %>% 
     spread(Parameter, Result) %>% 
     na.omit %>%
     unite('rwnm', StationCode, Date) %>% 
@@ -901,7 +923,8 @@ mulplo <- reactive({
   toord <- toord %>% 
     select(-Watershed) %>% 
     decostand(method = 'log', na.rm = T) %>% 
-    decostand(method= 'standardize', na.rm = T)
+    decostand(method= 'standardize', na.rm = T) %>% 
+    select(which(!is.na(apply(., 2, var))))
 
   ord <- toord %>% 
     prcomp(scale. = T, center = T)
@@ -920,7 +943,7 @@ mulplo <- reactive({
       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
     )
 
-  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5) + 
+  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5, coord_fix = F) + 
     scale_fill_viridis_d(guide_legend(ncol = 1)) + 
     geom_point(data = vals, aes(alpha = StationCode), size = 3) +
     scale_alpha_manual(values = c(0.2, 0.8)) + 
@@ -936,6 +959,10 @@ mulplo <- reactive({
     filter(StationCode %in% stasel2) %>% 
     filter(StationCode2 %in% stasel3)
   
+  # dissimilarity ranges
+  disrng <- range(disdat$dist, na.rm = T)
+  
+  dismid <- disrng[1] + (disrng[2] - disrng[1]) / 2
   subttl <- paste0("Dissimilarity between ", stasel2, " and ", stasel3, " ", round(outplo$dist, 1))
   
   p2 <- ggplot(disdat) +
@@ -943,7 +970,7 @@ mulplo <- reactive({
     geom_tile(data = outplo, aes(x = StationCode, y = StationCode2), fill = NA, colour = 'black', size = 2) +
     scale_x_discrete('', expand = c(0, 0)) +
     scale_y_discrete('', expand = c(0, 0)) +
-    scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = 8, limits = c(0, 16)) +
+    scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = dismid, limits = disrng) +
     guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
     labs(
       title = varsel2, 
@@ -1064,10 +1091,10 @@ leafsync::sync(m1a, m2a, m3a, ncol = 1)
 ```{r}
 column(12, 
        column(4,
-         selectInput('consel1', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'Nutrients') 
+         selectInput('consel1', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs') 
        ),
        column(4, 
-         selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Variance'))
+         selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Variance', 'Median absolute deviation'))
        )
 )
 ```
@@ -1081,7 +1108,7 @@ renderUI(invtab())
 ```{r}
 column(12, 
   column(4, 
-       selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'Nutrients')
+       selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs')
   ),
   column(4, 
        renderUI({
@@ -1333,7 +1360,7 @@ meprp <- medat %>%
   mutate(
     Date = floor_date(Date, unit = 'month')
   ) %>% 
-  filter(Parameter %in% nutrs) %>% 
+  filter(Parameter %in% c(metals, nutrs, organs)) %>% 
   select(Watershed, StationCode, Date, Parameter, Result) %>% 
   group_by(Watershed, StationCode, Date, Parameter) %>% 
   summarise(Result = mean(Result, na.rm = T)) %>% 
@@ -1351,15 +1378,32 @@ siteshd <- meprp %>%
 ```
 
 ```{r}
+column(12,
+  column(6,
+        selectInput('consel3', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs')
+         ),
+  column(6,
+         renderUI({
+           
+           # input
+           consel3 <- input$consel3
+         
+           if(consel3 == 'organs')
+             sels <- c('GLYP', 'Malathion')
+           else 
+            sels <- eval(parse(text = consel3))
+           
+           selectInput('varsel2', 'Select constituent:', choices = sels)
+           
+         })
+  )
+)
 column(12, 
-  column(4, 
+  column(6, 
        selectInput('stasel2', 'Select first station:', choices = unique(pows$sta), selected = 'SDMF05')
   ), 
-  column(4, 
+  column(6, 
        selectInput('stasel3', 'Select second station:', choices = unique(pows$sta), selected = 'SADF01')
-  ), 
-  column(4, 
-       selectInput('varsel2', 'Select constituent:', choices = nutrs, selected = 'Nitrate, Nitrite')
   )
 )
 ```
