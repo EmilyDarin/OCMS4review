@@ -222,31 +222,15 @@ staplo <- reactive({
   
 })
 
-# median value for selected constituent
-hotmed <- reactive({
-  
-  # input
-  varsel3 <- input$varsel3
-  
-  out <- dwdat %>% 
-    filter(Parameter %in% varsel3) %>% 
-    pull(Result) %>% 
-    na.omit %>% 
-    median 
-  
-  return(out)
-  
-})
-
 # hotspot data
 hotdat <- reactive({
   
   # inputs
-  hotmed <- hotmed()
   cntsel <- input$cntsel
   varsel3 <- input$varsel3
   dtssel <- input$dtssel
-
+  thrsel2 <- input$thrsel2
+  
   # summary for all dates, stations by selected constituent
   out <- dwdat %>% 
     filter(Parameter %in% varsel3) %>%
@@ -281,7 +265,6 @@ hotmap <- reactive({
   
   # input
   hotdat <- hotdat()
-  hotmed <- hotmed()
   
   tomap <- hotdat %>%
     left_join(locs, by = 'StationCode') %>%
@@ -780,9 +763,34 @@ column(12,
               sliderInput('cntsel', 'Filter stations by total n:', min = 0, max = obsrng[2], value = c(0, obsrng[2]), width = '600px')
        )
 )
+column(12,
+       column(4, NULL),
+       column(8,
+              renderUI({
+                
+                req(nrow(stawshpardat())> 0)
+                # inputs
+                varsel3 <- input$varsel3
+                
+                # values for slider
+                qnts <- seq(0, 1, by = 0.1)
+                val <- dwdat %>% 
+                  filter(Parameter %in% varsel3) %>%
+                  pull(Result) %>% 
+                  quantile(probs = qnts, na.rm = T) %>%
+                  round(2) %>% 
+                  as.list()
+                
+                # selectInput('thrsel', 'Select threshold as quantile:', choices = qntval, selected = qntval[10])
+                sliderInput('thrsel2', 'Select threshold:', min = val[1], max = val[2], value = qntval[6], width = '600px')
+                
+              })
+              
+       )
+)
 ```
 
-Map shows number of exceedances of each station above the median value across all dates/stations for `r renderText({input$varsel3})` (`r renderText({round(hotmed(), 1)})`)
+Map shows number of exceedances of each station above the selected value across all dates/stations for `r renderText({input$varsel3})` (`r renderText({round(input$thrsel2, 1)})`)
 ```{r}
 renderLeaflet(hotmap())
 ```
