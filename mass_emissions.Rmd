@@ -865,7 +865,7 @@ disdat <- reactive({
   varsel2 <- input$varsel2
   
   req(varsel2)
-browser()
+
   dissim <- meprp %>% 
     filter(Parameter %in% varsel2) %>% 
     select(-Watershed, -Parameter) %>% 
@@ -891,6 +891,55 @@ browser()
   
   return(dissim)
   
+  # # input
+  # consel3 <- input$consel3
+  # 
+  # if(consel3 == 'organs')
+  #   sels <- c('GLYP', 'Malathion')
+  # else 
+  #   sels <- eval(parse(text = consel3))
+  # 
+  # dissim <- meprp %>% 
+  #   filter(Parameter %in% !!sels) %>% 
+  #   group_by(StationCode, Parameter) %>% 
+  #   summarise(Result = median(Result, na.rm = T)) %>% 
+  #   ungroup %>% 
+  #   spread(Parameter, Result) %>% 
+  #   column_to_rownames('StationCode') %>% 
+  #   vegdist(method = 'euclidean', na.rm = T) %>%
+  #   as.matrix %>%
+  #   as.data.frame %>%
+  #   rownames_to_column('StationCode') %>%
+  #   gather('StationCode2', 'dist', -StationCode) %>%
+  #   left_join(siteshd, by = 'StationCode') %>%
+  #   arrange(Watershed, dist) %>%
+  #   mutate(
+  #     Watershed = factor(Watershed, levels = unique(Watershed)),
+  #     dist = ifelse(StationCode == StationCode2, NA, dist)
+  #   )
+  # 
+  # return(dissim)
+  
+})
+
+# select unique stations
+unisel <- reactive({
+  
+  # input
+  disdat <- disdat()
+  unithr <- input$unithr
+  
+  req(unithr)
+  
+  out <- disdat %>% 
+    filter(!is.na(dist)) %>% 
+    rowwise() %>% 
+    case_when(
+        dist > unithr ~ paste(StationCode, StationCode2), 
+        dist <= unithr ~ sample(c(StationCode, StationCode2), 1), 
+        T ~ NA
+      )
+    
 })
 
 # multivariate comparison plots
@@ -1413,6 +1462,28 @@ This plot shows a PCA comparison of all sites, dates, and constituents and a dis
 ```{r}
 renderPlot({mulplo()}, height = 550, width = 900)
 ```
+
+```{r}
+column(12, 
+       column(6, 
+              renderUI({
+                
+                # input
+                disdat <- disdat()
+                
+                rng <- round(range(disdat$dist, na.rm = T), 1)
+                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 1)
+              
+                sliderInput('unithr', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)  
+              })
+      )
+)
+```
+
+```{r}
+renderText(unisel())
+```
+
 
 Observed time series for selected stations and constituent.
 
