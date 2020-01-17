@@ -222,6 +222,24 @@ staplo <- reactive({
   
 })
 
+# hotspot input ranges
+hotrng <- reactive({
+  
+  # inputs
+  varsel3 <- input$varsel3
+  
+  # values for slider
+  qnts <- c(0, 0.5, 1)
+  out <- dwdat %>% 
+    filter(Parameter %in% varsel3) %>%
+    pull(Result) %>% 
+    quantile(probs = qnts, na.rm = T) %>%
+    round(2)
+  
+  return(out)
+  
+})
+
 # hotspot data
 hotdat <- reactive({
   
@@ -231,6 +249,8 @@ hotdat <- reactive({
   dtssel <- input$dtssel
   thrsel2 <- input$thrsel2
   
+  req(thrsel2)
+  
   # summary for all dates, stations by selected constituent
   out <- dwdat %>% 
     filter(Parameter %in% varsel3) %>%
@@ -239,7 +259,7 @@ hotdat <- reactive({
     filter(Date >= dtssel[1] & Date <= dtssel[2]) %>%
     mutate(
       abv = case_when(
-        Result > hotmed ~ 1, 
+        Result > thrsel2 ~ 1, 
         T ~ 0
       )
     ) %>% 
@@ -765,32 +785,30 @@ column(12,
 )
 column(12,
        column(4, NULL),
-       column(8,
+       column(4,
               renderUI({
                 
-                req(nrow(stawshpardat())> 0)
-                # inputs
-                varsel3 <- input$varsel3
+                # input
+                hotrng <- hotrng()
                 
-                # values for slider
-                qnts <- seq(0, 1, by = 0.1)
-                val <- dwdat %>% 
-                  filter(Parameter %in% varsel3) %>%
-                  pull(Result) %>% 
-                  quantile(probs = qnts, na.rm = T) %>%
-                  round(2) %>% 
-                  as.list()
-                
-                # selectInput('thrsel', 'Select threshold as quantile:', choices = qntval, selected = qntval[10])
-                sliderInput('thrsel2', 'Select threshold:', min = val[1], max = val[2], value = qntval[6], width = '600px')
+                numericInput('thrsel2', 'Input threshold (default median):', min = hotrng[1], max = hotrng[3], value = hotrng[2])
                 
               })
-              
+       ), 
+       column(4, 
+              renderText({
+         
+                # input
+                hotrng <- hotrng()
+                out <- paste0("min ", hotrng[1], ', max ', hotrng[3])
+                return(out)
+                       
+              })
        )
 )
 ```
 
-Map shows number of exceedances of each station above the selected value across all dates/stations for `r renderText({input$varsel3})` (`r renderText({round(input$thrsel2, 1)})`)
+Map shows number of exceedances of each station above the selected value across all dates/stations for `r renderText({input$varsel3})`
 ```{r}
 renderLeaflet(hotmap())
 ```
