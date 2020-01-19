@@ -94,11 +94,29 @@ obsrng <- dwdat %>%
   pull(n) %>% 
   range
 
+# obs ranges per station, averages across parameters
+obsave <- dwdat %>% 
+  group_by(StationCode, Parameter) %>% 
+  summarise(n = n()) %>% 
+  group_by(StationCode) %>% 
+  summarise(n = mean(n, na.rm = T)) %>% 
+  mutate(n = round(n, 1))
+obsaverng <- obsave %>% 
+  pull(n) %>% 
+  range
+
 # color palette for hotspot exceedances
 hotcol <- colorNumeric(
   palette = RColorBrewer::brewer.pal(9, 'Reds'),
   na.color = 'yellow',
     domain = c(0, obsrng[2])
+  )
+
+# color palette for hotspot exceedances, all parameters
+hotcol2 <- colorNumeric(
+  palette = RColorBrewer::brewer.pal(9, 'Reds'),
+  na.color = 'yellow',
+    domain = c(0, obsaverng[2])
   )
 
 # nutrients and top ten parameters
@@ -327,6 +345,121 @@ hotplo <- reactive({
       axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
     ) + 
     scale_y_continuous(limits = c(0, obsrng[2])) + 
+    labs(
+      y = ylab
+    )
+
+  return(p)
+  
+})
+
+# quantiles based on thrsel3
+hotrng2 <- reactive({
+  
+  # input
+  thrsel3 <- input$thrsel3
+  
+  out <- dwdat %>% 
+    filter(Parameter %in% tops) %>%
+    group_by(Parameter) %>% 
+    summarise(
+      qnt = quantile(Result, probs = as.numeric(thrsel3), na.rm= T)
+    )
+  
+  return(out)
+  
+})
+
+# hotspot data
+hotdat2 <- reactive({
+  
+  # inputs
+  cntsel2 <- input$cntsel2
+  dtssel2 <- input$dtssel2
+  hotrng2 <- hotrng2()
+  
+  req(hotrng2)
+  
+  # summary for all dates, stations by selected constituent
+  out <- dwdat %>% 
+    filter(Parameter %in% tops) %>%
+    left_join(hotrng2, by = 'Parameter') %>% 
+    left_join(obsave, by = 'StationCode') %>% 
+    filter(n >= cntsel2[1] & n <= cntsel2[2]) %>% 
+    filter(Date >= dtssel2[1] & Date <= dtssel2[2]) %>%
+    mutate(
+      abv = case_when(
+        Result > qnt ~ 1, 
+        T ~ 0
+      )
+    ) %>% 
+    group_by(StationCode, Watershed, Parameter, n) %>% 
+    summarise(
+      exceeds = sum(abv, na.rm = T)
+      ) %>% 
+    group_by(StationCode, Watershed, n) %>% 
+    summarise(
+      exceeds = mean(exceeds, na.rm = T)
+    ) %>% 
+    ungroup() %>% 
+    mutate(
+      cols = hotcol2(exceeds), 
+      cexs = scales::rescale(exceeds, to = c(4, 17), from = obsaverng)
+    ) %>% 
+    select(Watershed, StationCode, exceeds, n, cols, cexs) %>% 
+    unique
+  
+  return(out)
+  
+})
+
+# map of exceedances
+hotmap2 <- reactive({
+  
+  # input
+  hotdat2 <- hotdat2()
+  
+  tomap <- hotdat2 %>%
+    left_join(locs, by = 'StationCode') %>%
+    st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+
+  # hover pt labels
+  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' avg exceedences, ', tomap$n, ' total avg obs.')
+  leglab <- "No. exceedances"
+  
+  mapviewOptions(leafletHeight = 400)
+
+  m <- mapview(tomap, zcol = 'n', cex = tomap$cexs, label = labs, legend = F, layer.name = F, col.regions = tomap$cols, homebutton = F, map.types = mptyps)
+  
+  # add legend
+  out <- m@map %>% 
+    addLegend("bottomright", pal = hotcol2, title = leglab, opacity = 1, values = tomap$exceeds) 
+  
+  return(out)
+  
+})
+
+# plot of hotspots by watershed
+hotplo2 <- reactive({
+  
+  # input
+  hotdat2 <- hotdat2()
+  dtssel <- input$dtssel
+  
+  toplo <- hotdat2 %>% 
+    arrange(Watershed, exceeds) %>% 
+    mutate(StationCode = factor(StationCode, levels = .$StationCode))
+
+  ylab <- paste0("Number of exceedances above the median\nfrom ", as.character(dtssel[1]), ' to ', as.character(dtssel[2]))
+  
+  p <- ggplot(toplo, aes(x = StationCode, y = exceeds)) + 
+    geom_bar(stat = 'identity', fill = toplo$cols, color = 'grey') + 
+    facet_grid(~ Watershed, scales = 'free_x', space = 'free_x') + 
+    thm1 + 
+    theme(
+      axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
+    ) + 
+    scale_y_continuous(limits = c(0, obsaverng[2])) + 
     labs(
       y = ylab
     )
@@ -768,6 +901,8 @@ renderPlot({staplo()}, height = 500, width = 700)
 
 ## Hotspots {.tabset .tabset-pills}
 
+### Individual constituents
+
 ```{r}
 column(12, 
        column(4, 
@@ -815,6 +950,38 @@ renderLeaflet(hotmap())
 
 ```{r}
 renderPlot(hotplo(), height = 450, width = 900)
+```
+
+### Multiple constituents
+
+```{r}
+column(12, 
+       column(4, NULL),
+       column(8, 
+              sliderInput('dtssel2', 'Select date range:', min = dts[1], max = dts[2], value = dts, timeFormat="%Y-%m", width = '600px')
+       )
+)
+column(12,
+       column(4, NULL),
+       column(8,
+              sliderInput('cntsel2', 'Filter stations by average n:', min = 0, max = obsaverng[2], value = c(0, obsaverng[2]), width = '600px')
+       )
+)
+column(12,
+       column(4, NULL),
+       column(4,
+              selectInput('thrsel3', 'Input threshold as quantile:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.5)
+       )
+)
+```
+
+Map shows average number of exceedances of each station above the selected quantile value across all dates/stations for the top ten monitored constituents.
+```{r}
+renderLeaflet(hotmap2())
+```
+
+```{r}
+renderPlot(hotplo2(), height = 450, width = 900)
 ```
 
 ## Analyses by watershed {.tabset .tabset-pills}
