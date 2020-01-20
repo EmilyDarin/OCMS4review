@@ -56,11 +56,12 @@ medat <- me_dat %>%
       Parameter %in% 'OrthoPhosphateP' ~ 'Orthophosphate', 
       Parameter %in% 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
       T ~ Parameter
-    )
+    ), 
+    Type = gsub('T$|F$', '', Type)
   ) %>% 
   rename(StationCode = Station) %>% 
   inner_join(me_stat, by = c('StationCode', 'Watershed')) %>% 
-  select(StationCode, Watershed, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
+  select(StationCode, Watershed, Date, Parameter, Result, Units, Type, Qualifier, Longitude, Latitude)
 
 save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
@@ -93,7 +94,8 @@ scns <- crossing(
   sta = unique(powdat$StationCode),
   par = unique(powdat$Parameter), 
   chg = seq(0.1, 1, length = 10),
-  eff = seq(0.1, 1,length = 10)
+  eff = seq(0.1, 1,length = 10), 
+  wxt = c('D', 'S')
   ) %>% 
   filter(!sta %in% 'SICG03') 
 
@@ -117,10 +119,13 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
   par <- scns[i, ][['par']]
   chg <- scns[i, ][['chg']]
   eff <- scns[i, ][['eff']]
+  wxt <- scns[i, ][['wxt']]
   
   topow <- powdat %>% 
     filter(StationCode %in% sta) %>% 
-    filter(Parameter %in% par)
+    filter(Parameter %in% par) %>% 
+    filter(Type %in% wxt) %>% 
+    arrange(Date)
   
   simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
   
