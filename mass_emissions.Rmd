@@ -924,6 +924,62 @@ disdat <- reactive({
   
 })
 
+# dissimilarity data, all constituents
+discondat <- reactive({
+   
+  # input
+  consel3 <- input$consel3
+  
+  if(consel3 == 'organs')
+    sels <- c('GLYP', 'Malathion')
+  else 
+    sels <- eval(parse(text = consel3))
+           
+  dissim <- meprp %>% 
+    filter(Parameter %in% sels) %>% 
+    select(-Watershed) %>% 
+    group_by(Parameter) %>% 
+    nest() %>% 
+    mutate(
+      dis = purrr::map(data, function(data){
+        
+        out <- data %>% 
+          spread(StationCode, Result) %>% 
+          column_to_rownames('Date') %>% 
+          decostand(method = 'log', na.rm = T) %>% 
+          decostand(method= 'standardize', na.rm = T) %>%
+          rownames_to_column('Date') %>% 
+          gather('StationCode', 'Result', -Date) %>% 
+          spread(Date, Result) %>% 
+          column_to_rownames('StationCode') %>% 
+          vegdist(method = 'euclidean', na.rm = T) %>%
+          as.matrix %>%
+          as.data.frame %>%
+          rownames_to_column('StationCode') %>%
+          gather('StationCode2', 'dist', -StationCode) %>%
+          left_join(siteshd, by = 'StationCode') %>%
+          arrange(Watershed, dist) %>%
+          mutate(
+            Watershed = factor(Watershed, levels = unique(Watershed)),
+            dist = ifelse(StationCode == StationCode2, NA, dist)
+          )
+        
+        return(out)
+        
+      })
+    ) %>% 
+    select(-data) %>% 
+    unnest(dis) %>% 
+    na.omit %>% 
+    group_by(Parameter, StationCode) %>% 
+    summarise(dist = mean(dist, na.rm = T)) %>% 
+    group_by(StationCode) %>% 
+    summarise(dist = mean(dist, na.rm = T))
+    
+  return(dissim)
+  
+})
+
 # select unique stations
 unisel <- reactive({
   
@@ -947,6 +1003,28 @@ unisel <- reactive({
     kable_styling(full_width = T, font_size = 14))  
     
 })
+
+# select unique stations, average across constituents
+unisel2 <- reactive({
+  
+  # input
+  discondat <- discondat()
+  unithr2 <- input$unithr2
+
+  req(unithr2)
+   
+  totab <- discondat %>% 
+    filter(dist > unithr2) %>% 
+    arrange(dist) %>% 
+    rename(`Avg. dissimilarity` = dist)
+
+  cap <- paste0('Selected "unique" stations using average dissimilarity threshold of ', unithr2, ', values are averages across constituents.')
+  
+  HTML(knitr::kable(totab, format = 'html', caption = cap, digits = 2) %>% 
+    kable_styling(full_width = T, font_size = 14))  
+    
+})
+
 
 # multivariate comparison plots
 mulplo <- reactive({
@@ -1436,6 +1514,8 @@ column(12,
 )
 ```
 
+### By constituent {.tabset .tabset-pills}
+
 This plot shows a PCA comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
 
 ```{r}
@@ -1471,20 +1551,50 @@ renderUI(unisel())
 
 Observed time series for selected stations and constituent.
 
-### Time series
+#### Time series
 
 ```{r}
 renderPlot({obsp4()}, height = 450, width = 700)
 ```
 
-### By year
+#### By year
 
 ```{r}
 renderPlot({obsp5()}, height = 450, width = 700)
 ```
 
-### By month
+#### By month
 
 ```{r}
 renderPlot({obsp6()}, height = 450, width = 700)
 ```
+
+### Across constituents 
+
+```{r}
+column(12, 
+       column(6, 
+              renderUI({
+                
+                # input
+                discondat <- discondat()
+                
+                rng <- discondat %>% 
+                  pull(dist) 
+
+                rng <- round(range(rng, na.rm = T), 2)
+                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 2)
+              
+                sliderInput('unithr2', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)  
+                
+              })
+      )
+)
+```
+
+This selection is the same as in the previous tab, except the average represents the grand mean of dissimilarities across all constituents and stations for the selected constituent type. 
+
+```{r}
+renderUI(unisel2())
+```
+
