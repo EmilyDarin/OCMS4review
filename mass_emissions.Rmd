@@ -1103,6 +1103,79 @@ optplo1 <- reactive({
   return(pout)
   
 })
+
+# optimal sample effort data, all constituents
+optdat2 <- reactive({
+  
+  # input
+  powsel2 <- input$powsel2
+  consel2 <- input$consel2
+   
+  if(consel2 == 'organs')
+    sels <- c('GLYP', 'Malathion')
+  else 
+    sels <- eval(parse(text = consel2)) 
+   
+  dat <- pows %>% 
+    filter(par %in% !!sels) 
+
+  opts <- dat %>% 
+    group_by(sta, par) %>% 
+    nest %>% 
+    mutate(
+      opt = purrr::map(data, getopt, pow = powsel2)
+    ) %>% 
+    dplyr::select(-data) %>% 
+    unnest(opt) %>% 
+    dplyr::select(-opt) %>% 
+    na.omit %>% 
+    unite('stapar', sta, par, remove = F)
+
+  # cut if no data
+  validate(
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
+  )
+  
+  out <- dat %>% 
+    filter(sta %in% opts$sta) %>% 
+    unite('stapar', sta, par, remove = F)
+
+  out <- list(
+    toplo = out,
+    opts = opts
+  )
+  
+  return(out)
+  
+})
+
+# first optimal plot, all constituents
+optplo2 <- reactive({
+  
+  # inputs
+  optdat2 <- optdat2()
+  powsel2 <- input$powsel2
+  
+  toplo <- optdat2$toplo
+  opts <- optdat2$opts
+  medv <- median(opts$eff, na.rm = T) %>% round(2)
+  
+  p1 <- ggplot(toplo) +
+    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2) + 
+    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 4) + 
+    thm2 +
+    labs(
+      x = 'Relative sample effort', 
+      y = paste0('Magnitude of trend change (%)'),
+      subtitle = paste0("Optimal sample efforts at ", powsel2, " power: ", medv , ' relative effort')
+    )
+  
+  pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+  
+  return(pout)
+  
+})
 ```
 
 ## Inventory {.tabset .tabset-pills}
@@ -1271,7 +1344,7 @@ renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
 
-### Optimal sample effort
+### Optimal effort by constituent
 
 Optimal sample effort was determined for all stations and a selected constituent (`r renderText({input$varsel})`) using power results for the ability to detect a specified trend (first power analysis).  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).   
 
@@ -1288,6 +1361,23 @@ renderPlot(optplo1(), height = 450, width = 900)
 ```
 
 Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.  
+
+
+### Optimal effort across constituents
+
+This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The optimal effort is the median of all optimal efforts combined.
+
+```{r}
+column(12, 
+       column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.5))
+       )
+```
+
+```{r}
+renderPlot(optplo2(), height = 450, width = 900)
+```
+
+Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents for the selected constituent type.  
 
 ## Station differences {.tabset .tabset-pills}
 
