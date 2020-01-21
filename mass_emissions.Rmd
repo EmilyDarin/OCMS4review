@@ -161,9 +161,15 @@ stapardat <- reactive({
   # inputs
   stasel <- input$stasel
   varsel <- input$varsel
+  smpsel <- input$smpsel
 
+  req(varsel)
+  req(stasel)
+  
   out <- medat %>% 
     filter(StationCode %in% stasel) %>% 
+    filter(Parameter %in% varsel) %>% 
+    filter(Type %in% smpsel) %>% 
     mutate(
       Detection = case_when(
         Qualifier %in% '<' ~ 'below detection', 
@@ -171,9 +177,12 @@ stapardat <- reactive({
       ),
       Year = year(Date), 
       Month = month(Date, label = T)
-    ) %>%
-    filter(Parameter %in% varsel)
-    
+    ) 
+
+  validate(
+    need(nrow(out) > 0, 'No data in selection')
+  )    
+  
   return(out)
   
 })
@@ -456,15 +465,20 @@ powdat <- reactive({
   # input
   stasel <- input$stasel
   varsel <- input$varsel
+  smpsel <- input$smpsel
+  
+  req(varsel)
+  req(stasel)
 
   out <- medat %>%
     filter(StationCode %in% stasel) %>%
+    filter(Parameter %in% varsel) %>%
+    filter(Type %in% smpsel) %>% 
     mutate(
       Year = year(Date),
       Season = yday(Date),
       dectime = decimal_date(Date)
-    ) %>% 
-    filter(Parameter %in% varsel) 
+    )
 
   return(out)
   
@@ -585,10 +599,12 @@ powplo3 <- reactive({
   # input
   stasel <- input$stasel
   varsel <- input$varsel
+  smpsel <- input$smpsel
   
   toplo <- pows %>% 
     filter(sta %in% stasel) %>% 
-    filter(par %in% varsel)
+    filter(par %in% varsel) %>% 
+    filter(wxt %in% smpsel)
   
   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
     # geom_tile() +
@@ -1025,7 +1041,6 @@ unisel2 <- reactive({
     
 })
 
-
 # multivariate comparison plots
 mulplo <- reactive({
   
@@ -1121,9 +1136,11 @@ optdat <- reactive({
   # input
   varsel <- input$varsel
   powsel <- input$powsel
+  smpsel <- input$smpsel
   
   dat <- pows %>% 
-    filter(par %in% varsel) 
+    filter(par %in% varsel) %>% 
+    filter(wxt %in% smpsel)
 
   opts <- dat %>% 
     group_by(sta) %>% 
@@ -1188,6 +1205,7 @@ optdat2 <- reactive({
   # input
   powsel2 <- input$powsel2
   consel2 <- input$consel2
+  smpsel <- input$smpsel
    
   if(consel2 == 'organs')
     sels <- c('GLYP', 'Malathion')
@@ -1195,7 +1213,8 @@ optdat2 <- reactive({
     sels <- eval(parse(text = consel2)) 
    
   dat <- pows %>% 
-    filter(par %in% !!sels) 
+    filter(par %in% !!sels) %>% 
+    filter(wxt %in% smpsel)
 
   opts <- dat %>% 
     group_by(sta, par) %>% 
