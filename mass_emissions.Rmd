@@ -1313,10 +1313,10 @@ renderUI(invtab())
 
 ```{r}
 column(12, 
-  column(4, 
+  column(6, 
        selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs')
   ),
-  column(4, 
+  column(6, 
        renderUI({
        
          req(input$varsel)
@@ -1332,8 +1332,10 @@ column(12,
          selectInput('stasel', 'Select station:', choices = sels)  
          
        })
-  ), 
-  column(4, 
+  )
+)
+column(12, 
+  column(6, 
        renderUI({
        
          # input
@@ -1343,6 +1345,9 @@ column(12,
          selectInput('varsel', 'Select constituent:', choices = sels)
          
        })
+  ),
+  column(6, 
+       selectInput('smpsel', 'Select sampling weather:', choices = list('dry' = 'D', 'storm'= 'S'))
   )
 )
 ```
