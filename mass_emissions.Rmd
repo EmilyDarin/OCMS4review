@@ -1707,3 +1707,104 @@ This selection is the same as in the previous tab, except the average represents
 renderUI(unisel2())
 ```
 
+## Overall nitrogen trends
+
+```{r}
+allnitdat <- medat %>%
+  filter(Parameter %in% c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen')) %>%
+  mutate(
+    Year = year(Date),
+    Month = month(Date, label = T)
+  ) %>%
+  group_by(StationCode, Parameter, Year) %>%
+  summarise(
+    Result = mean(Result, na.rm = T),
+  ) %>%
+  group_by(StationCode, Parameter) %>%
+  filter(n() == 10) %>%
+  mutate(
+    avg = mean(Result, na.rm = T),
+    dev = Result - avg
+  ) %>%
+  nest %>%
+  mutate(
+    res = purrr::map(data, function(x){
+      knout <- kendallTrendTest(dev ~ Year, x)
+      outest <- round(knout$estimate, 2)
+      outpval <- p_ast(knout$p.value)
+      nval <- nrow(na.omit(x))
+      out <- c(n = nval, outest, pval = outpval) %>%
+        data.frame %>%
+        t %>%
+        data.frame %>%
+        select(-intercept)
+      return(out)
+    })
+  ) %>%
+  select(-data) %>%
+  unnest(res) %>%
+  mutate(
+    tau = as.numeric(as.character(tau)),
+    slope = as.numeric(as.character(slope)),
+    trend = ifelse(tau < 0, 'dec', 'inc')
+  )
+```
+
+Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+
+The maps show the value for tau (direction of trend) for a Kendall test of nitrogen changes for stations with ten years of data, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between the three nitrogen constituents (ammonia left, nitrate/nitrite middle, total Kjeldahl nitrogen right).  The table shows the detailed results from the map.
+
+```{r}
+locs <- medat %>%
+  select(StationCode, Longitude, Latitude) %>%
+  unique
+tomap <- allnitdat %>%
+  left_join(locs, by = 'StationCode') %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+ # point colors
+cols <- tomap %>%
+  mutate(
+    cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
+    cols = as.character(cols)
+  ) %>%
+  pull(cols)
+# size values
+cexv <- tomap %>%
+  pull(tau) %>%
+  abs %>%
+  scales::rescale(to = c(2, 15))
+# hover pt labels
+labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
+mapviewOptions(leafletHeight = 400)
+m1sel <- 'Ammonia'
+m1map <- tomap %>% filter(Parameter %in% m1sel)
+m1cexv <- cexv[tomap$Parameter %in% m1sel]
+m1labs <- labs[tomap$Parameter %in% m1sel]
+m1cols <- cols[tomap$Parameter %in% m1sel]
+m1b <- mapview(m1map, zcol = 'tau', cex = m1cexv, label = m1labs, col.regions = m1cols, legend = F, layer.name = m1sel, map.types = mptyps)
+m2sel <- 'Nitrate, Nitrite'
+m2map <- tomap %>% filter(Parameter %in% m2sel)
+m2cexv <- cexv[tomap$Parameter %in% m2sel]
+m2labs <- labs[tomap$Parameter %in% m2sel]
+m2cols <- cols[tomap$Parameter %in% m2sel]
+m2b <- mapview(m2map, zcol = 'tau', cex = m2cexv, label = m2labs, col.regions = m2cols, legend = F, layer.name = m2sel, map.types = mptyps)
+m3sel <- 'Total Kjeldahl Nitrogen'
+m3map <- tomap %>% filter(Parameter %in% m3sel)
+m3cexv <- cexv[tomap$Parameter %in% m3sel]
+m3labs <- labs[tomap$Parameter %in% m3sel]
+m3cols <- cols[tomap$Parameter %in% m3sel]
+m3b <- mapview(m3map, zcol = 'tau', cex = m3cexv, label = m3labs, col.regions = m3cols, legend = F, layer.name = m3sel, map.types = mptyps)
+leafsync::sync(m1b, m2b, m3b, ncol = 3)
+```
+
+```{r}
+totab <- allnitdat %>%
+  ungroup %>%
+  arrange(Parameter, StationCode) %>%
+  mutate(
+    Parameter = ifelse(duplicated(Parameter), '', Parameter)
+  ) %>%
+  select(Parameter, StationCode, everything())
+HTML(knitr::kable(totab, format = 'html') %>%
+    kable_styling(full_width = T, font_size = 14))
+```
