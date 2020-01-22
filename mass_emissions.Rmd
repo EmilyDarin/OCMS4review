@@ -29,6 +29,7 @@ library(ggord)
 library(patchwork)
 library(ggrepel)
 library(ggExtra)
+library(plotly)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -53,6 +54,14 @@ thm1 <- theme_bw(base_size = 16) +
   )
 
 thm2 <- theme_bw(base_size = 16) + 
+  theme(
+    strip.background = element_blank(), 
+    strip.placement = 'outside', 
+    legend.position = 'bottom', 
+    panel.grid = element_blank()
+  )
+
+thm3 <- theme_bw(base_size = 12) + 
   theme(
     strip.background = element_blank(), 
     strip.placement = 'outside', 
@@ -1151,7 +1160,8 @@ optdat <- reactive({
     dplyr::select(-data) %>% 
     unnest(opt) %>% 
     dplyr::select(-opt) %>% 
-    na.omit
+    na.omit %>% 
+    ungroup
   
   # cut if no data
   validate(
@@ -1170,32 +1180,62 @@ optdat <- reactive({
   
 })
 
-# first optimal plot
-optplo1 <- reactive({
+# text for optimal plot 1
+opttxt <- reactive({
+  
+  # input
+  powsel <- input$powsel
+  optdat <- optdat()
+  
+  opts <- optdat$opts
+  medv <- median(opts$eff, na.rm = T) %>% round(2)
+  out <- paste0("Optimal sample effort at ", powsel, " power: ", medv , ' relative effort')
+  
+  return(out)
+  
+})
+
+# optimal plot, by constituent
+optplo <- reactive({
   
   # inputs
   optdat <- optdat()
   powsel <- input$powsel
-  varsel <- input$varsel
   
   toplo <- optdat$toplo
   opts <- optdat$opts
-  medv <- median(opts$eff, na.rm = T) %>% round(2)
   
-  p1 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel) + 
-    geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 4) + 
-    thm2 +
-    labs(
-      x = 'Relative sample effort', 
-      y = paste0('Magnitude of trend change (%)\nof ', varsel),
-      subtitle = paste0("Optimal sample efforts at ", powsel, " power: ", medv , ' relative effort')
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
+    geom_boxplot() +
+    scale_y_continuous(limits = c(0.1, 1)) + 
+    coord_flip() + 
+    theme_void() + 
+    theme(
+      panel.border = element_blank(), 
+      panel.grid = element_blank()
     )
   
-  pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
+    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
+    scale_x_continuous(limits = c(0.1, 1)) + 
+    thm3 +
+    labs(
+      x = 'Relative sample effort', 
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
   
-  return(pout)
+  pout1 <- ggplotly(p1, height = 150, width = 900)
+  pout2 <- ggplotly(p2, height = 450, width = 900)
+  
+  out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
+  return(out)
   
 })
 
@@ -1226,7 +1266,8 @@ optdat2 <- reactive({
     unnest(opt) %>% 
     dplyr::select(-opt) %>% 
     na.omit %>% 
-    unite('stapar', sta, par, remove = F)
+    unite('stapar', sta, par, remove = F) %>% 
+    ungroup
 
   # cut if no data
   validate(
@@ -1234,8 +1275,8 @@ optdat2 <- reactive({
   )
   
   out <- dat %>% 
-    filter(sta %in% opts$sta) %>% 
-    unite('stapar', sta, par, remove = F)
+    unite('stapar', sta, par, remove = F) %>% 
+    filter(stapar %in% opts$stapar)
 
   out <- list(
     toplo = out,
@@ -1246,7 +1287,22 @@ optdat2 <- reactive({
   
 })
 
-# first optimal plot, all constituents
+# text for optimal plot 2
+opttxt2 <- reactive({
+  
+  # input
+  powsel2 <- input$powsel2
+  optdat2 <- optdat2()
+  
+  opts <- optdat2$opts
+  medv <- median(opts$eff, na.rm = T) %>% round(2)
+  out <- paste0("Optimal sample effort at ", powsel2, " power: ", medv , ' relative effort')
+  
+  return(out)
+  
+})
+
+# optimal plot, all constituents
 optplo2 <- reactive({
   
   # inputs
@@ -1255,22 +1311,38 @@ optplo2 <- reactive({
   
   toplo <- optdat2$toplo
   opts <- optdat2$opts
-  medv <- median(opts$eff, na.rm = T) %>% round(2)
   
-  p1 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2) + 
-    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 4) + 
-    thm2 +
-    labs(
-      x = 'Relative sample effort', 
-      y = paste0('Magnitude of trend change (%)'),
-      subtitle = paste0("Optimal sample efforts at ", powsel2, " power: ", medv , ' relative effort')
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
+    geom_boxplot() +
+    scale_y_continuous(limits = c(0.1, 1)) + 
+    coord_flip() + 
+    theme_void() + 
+    theme(
+      panel.border = element_blank(), 
+      panel.grid = element_blank()
     )
   
-  pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
+    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = stapar), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
+    scale_x_continuous(limits = c(0.1, 1)) + 
+    thm3 +
+    labs(
+      x = 'Relative sample effort', 
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
   
-  return(pout)
+  pout1 <- ggplotly(p1, height = 150, width = 900)
+  pout2 <- ggplotly(p2, height = 450, width = 900)
+  
+  out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
+  return(out)
   
 })
 ```
@@ -1458,12 +1530,18 @@ column(12,
        )
 ```
 
+<br>
+<br>
+
+`r renderText(opttxt())`
+
 ```{r}
-renderPlot(optplo1(), height = 450, width = 900)
+renderPlotly(optplo())
 ```
 
+<br>
+<br>
 Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.  
-
 
 ### Optimal effort across constituents
 
@@ -1475,10 +1553,17 @@ column(12,
        )
 ```
 
+<br>
+<br>
+
+`r renderText(opttxt2())`
+
 ```{r}
-renderPlot(optplo2(), height = 450, width = 900)
+renderPlotly(optplo2())
 ```
 
+<br>
+<br>
 Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents for the selected constituent type.  
 
 ## Station differences {.tabset .tabset-pills}
