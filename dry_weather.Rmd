@@ -105,18 +105,11 @@ obsaverng <- obsave %>%
   pull(n) %>% 
   range
 
-# color palette for hotspot exceedances
+# color palette for hotspot exceedances, as prop
 hotcol <- colorNumeric(
-  palette = RColorBrewer::brewer.pal(9, 'Reds'),
+  palette = rev(RColorBrewer::brewer.pal(11, 'RdYlBu')),
   na.color = 'yellow',
-    domain = c(0, obsrng[2])
-  )
-
-# color palette for hotspot exceedances, all parameters
-hotcol2 <- colorNumeric(
-  palette = RColorBrewer::brewer.pal(9, 'Reds'),
-  na.color = 'yellow',
-    domain = c(0, obsaverng[2])
+    domain = c(0, 100)
   )
 
 # nutrients and top ten parameters
@@ -148,7 +141,7 @@ statab <- reactive({
       bind_rows(group_by(., StationCode) %>%
                   summarise(n=sum(n)) %>%
                   mutate(Year = 'Total')) %>%
-      spread(Year,n,fill=0)
+      spread(Year, n, fill = 0)
 
   }
 
@@ -268,7 +261,7 @@ hotdat <- reactive({
   thrsel2 <- input$thrsel2
   
   req(thrsel2)
-  
+
   # summary for all dates, stations by selected constituent
   out <- dwdat %>% 
     filter(Parameter %in% varsel3) %>%
@@ -287,8 +280,9 @@ hotdat <- reactive({
       ) %>% 
     ungroup() %>% 
     mutate(
+      exceeds = round(100 * exceeds / n, 0), 
       cols = hotcol(exceeds), 
-      cexs = scales::rescale(exceeds, to = c(4, 17), from = obsrng)
+      cexs = scales::rescale(exceeds, to = c(4, 17), from = c(0, 100))
     ) %>% 
     select(Watershed, StationCode, exceeds, n, cols, cexs) %>% 
     filter(n >= cntsel[1] & n <= cntsel[2]) %>% 
@@ -309,8 +303,8 @@ hotmap <- reactive({
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
   # hover pt labels
-  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' exceeding, ', tomap$n, ' total obs.')
-  leglab <- "No. exceedances"
+  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' % exceeding, ', tomap$n, ' total obs.')
+  leglab <- "% exceeding"
   
   mapviewOptions(leafletHeight = 400)
 
@@ -344,7 +338,7 @@ hotplo <- reactive({
     theme(
       axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
     ) + 
-    scale_y_continuous(limits = c(0, obsrng[2])) + 
+    scale_y_continuous(limits = c(0, 100)) + 
     labs(
       y = ylab
     )
@@ -403,8 +397,9 @@ hotdat2 <- reactive({
     ) %>% 
     ungroup() %>% 
     mutate(
-      cols = hotcol2(exceeds), 
-      cexs = scales::rescale(exceeds, to = c(4, 17), from = obsaverng)
+      exceeds = round(100 * exceeds / n, 0), 
+      cols = hotcol(exceeds), 
+      cexs = scales::rescale(exceeds, to = c(4, 17), from = c(0, 100))
     ) %>% 
     select(Watershed, StationCode, exceeds, n, cols, cexs) %>% 
     unique
@@ -424,8 +419,8 @@ hotmap2 <- reactive({
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
   # hover pt labels
-  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' avg exceedences, ', tomap$n, ' total avg obs.')
-  leglab <- "No. exceedances"
+  labs <- paste(tomap$StationCode, ': ', tomap$exceeds, ' avg % exceedences, ', tomap$n, ' total avg obs.')
+  leglab <- "% exceedances"
   
   mapviewOptions(leafletHeight = 400)
 
@@ -433,7 +428,7 @@ hotmap2 <- reactive({
   
   # add legend
   out <- m@map %>% 
-    addLegend("bottomright", pal = hotcol2, title = leglab, opacity = 1, values = tomap$exceeds) 
+    addLegend("bottomright", pal = hotcol, title = leglab, opacity = 1, values = tomap$exceeds) 
   
   return(out)
   
@@ -459,7 +454,7 @@ hotplo2 <- reactive({
     theme(
       axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
     ) + 
-    scale_y_continuous(limits = c(0, obsaverng[2])) + 
+    scale_y_continuous(limits = c(0, 100)) + 
     labs(
       y = ylab
     )
