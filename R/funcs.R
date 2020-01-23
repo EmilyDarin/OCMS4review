@@ -25,16 +25,18 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   powdat <- powdat %>%
     mutate(
       Year = year(Date), 
-      Season = yday(Date)
+      Season = yday(Date),
+      dectime = decimal_date(Date)
     )
     
   # model to estimate variance components
-  modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
+  # modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
+  modin <- lm(log(Result) ~ dectime, data = powdat)
 
   # total variation is the sum of annual, seasonal, and residual variation
   resdvar <- resid(modin) %>% var
-  seasvar <- gam.vcomp(modin, rescale = F)[[1]]
-  yearvar <- (summary(modin)$se[['Year']] * sqrt(ntot)) ^ 2
+  # seasvar <- gam.vcomp(modin, rescale = F)[[1]]
+  # yearvar <- (summary(modin)$se[['Year']] * sqrt(ntot)) ^ 2
 
   # estimate annual linear trend given actual signal
   # chg is desired change from starting value
@@ -61,23 +63,26 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   )
   
   # seasonal component from model
-  seascmp <- predict(modin, type = 'terms', exclude = 'Year', newdata = basedts) %>% 
-    as.numeric
+  # seascmp <- predict(modin, type = 'terms', exclude = 'Year', newdata = basedts) %>% 
+  #   as.numeric
+  trndcmp <- predict(modin, newdata = basedts)
   
   # simdat
   out <- basedts %>% 
     mutate(
-      annscmp = N,
-      seascmp = seascmp
+      # trndcmp = trndcmp#,
+      annscmp = N#,
+      # seascmp = seascmp
     ) %>% 
     crossing(
       sims = 1:sims
     ) %>% 
     mutate(
       simresd = rnorm(simeff * sims, 0, resdvar),
-      simseas = rnorm(simeff * sims, 0, seasvar),
-      simyear = rnorm(simeff * sims, 0, yearvar),
-      simrand = annscmp + seascmp + simresd + simseas + simyear
+      # simseas = rnorm(simeff * sims, 0, seasvar),
+      # simyear = rnorm(simeff * sims, 0, yearvar),
+      # simrand = annscmp + seascmp + simresd + simseas + simyear
+      simrand = annscmp + simresd
     ) %>% 
     arrange(sims, Date)
   

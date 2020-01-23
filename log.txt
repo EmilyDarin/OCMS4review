@@ -1,2 +1,2 @@
-120000 of 120000 
-Time difference of 6.846424 hours
+200 of 200 
+Time difference of 2.902315 mins
