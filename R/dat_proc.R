@@ -94,7 +94,7 @@ scns <- crossing(
   sta = unique(powdat$StationCode),
   par = unique(powdat$Parameter), 
   chg = seq(0.1, 1, length = 10),
-  eff = seq(0.1, 1,length = 10), 
+  eff = seq(0.1, 2,length = 10), 
   wxt = c('D', 'S')
   ) %>% 
   filter(!sta %in% 'SICG03') 
