@@ -1208,7 +1208,7 @@ optplo <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
-    scale_y_continuous(limits = c(0.1, 1)) + 
+    scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
     theme(
@@ -1221,7 +1221,7 @@ optplo <- reactive({
     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
     geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
-    scale_x_continuous(limits = c(0.1, 1)) + 
+    scale_x_continuous(limits = c(0.1, 2)) + 
     thm3 +
     labs(
       x = 'Relative sample effort', 
@@ -1315,7 +1315,7 @@ optplo2 <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
-    scale_y_continuous(limits = c(0.1, 1)) + 
+    scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
     theme(
@@ -1328,7 +1328,7 @@ optplo2 <- reactive({
     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
     geom_point(data = opts, aes(x = eff, y = chg, group = stapar), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
-    scale_x_continuous(limits = c(0.1, 1)) + 
+    scale_x_continuous(limits = c(0.1, 2)) + 
     thm3 +
     labs(
       x = 'Relative sample effort', 
@@ -1526,7 +1526,7 @@ The "optimal" level of sampling for each station is estimated as the point which
 
 ```{r}
 column(12, 
-       column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.5))
+       column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
        )
 ```
 
@@ -1549,7 +1549,7 @@ This is the same plot as the previous tab, except power curves that satisfy the 
 
 ```{r}
 column(12, 
-       column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.5))
+       column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
        )
 ```
 
