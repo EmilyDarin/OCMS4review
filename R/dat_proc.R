@@ -246,3 +246,25 @@ thrs <- scns %>%
   select(-value)
     
 save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')
+
+
+# optimal effort by station, constituent ----------------------------------
+
+source('R/funcs.R')
+
+data(pows)
+
+opteff <- pows %>% 
+  crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
+  group_by(par, sta, wxt, powin) %>% 
+  nest %>% 
+  mutate(
+    opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
+  ) %>% 
+  dplyr::select(-data) %>% 
+  unnest(opt) %>% 
+  dplyr::select(-opt) %>% 
+  na.omit %>% 
+  ungroup
+
+save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
