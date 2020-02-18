@@ -60,11 +60,43 @@ medat <- me_dat %>%
     Type = gsub('T$|F$', '', Type)
   ) %>% 
   rename(StationCode = Station) %>% 
-  inner_join(me_stat, by = c('StationCode', 'Watershed')) %>% 
+  inner_join(me_stat, by = c('StationCode', 'Watershed')) %>%
   select(StationCode, Watershed, Date, Parameter, Result, Units, Type, Qualifier, Longitude, Latitude)
 
 save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
+# tissue concentrations ---------------------------------------------------
+
+ts_dat <- read.csv(here::here('data/raw', 'NSMP Tissue Data.csv'), stringsAsFactors = F)
+ts_stat <- read.csv(here::here('data/raw', 'NSMP_Stations.csv'), stringsAsFactors = F)
+
+# organize tissue stations
+tsstat <- ts_stat %>% 
+  select(StationCode, Watershed, Latitude, Longitude)
+
+# wrangle
+tsdat <- ts_dat %>% 
+  mutate(
+    Date = mdy_hm(Date, tz = "Pacific/Pitcairn"),
+    Date = as.Date(Date), 
+    Parameter = case_when(
+      Parameter %in% '% Solid' ~ 'Percent Solids', 
+      Parameter %in% 'Percent Solid' ~ 'Percent Solids', 
+      T ~ Parameter
+    )
+  ) %>% 
+  rename(StationCode = Station) %>% 
+  left_join(tsstat, by = 'StationCode') %>%
+  select(StationCode, Watershed, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
+  
+# remove stations with less than 15 obs
+tsdat <- tsdat %>% 
+  group_by(StationCode) %>% 
+  filter(n() > 15) %>% 
+  ungroup()
+
+save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
+  
 # power analysis for trends -----------------------------------------------
 
 data(medat)
