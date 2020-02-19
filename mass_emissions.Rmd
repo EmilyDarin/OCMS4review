@@ -185,6 +185,7 @@ stapardat <- reactive({
         Qualifier %in% '<' ~ 'below detection', 
         T ~ 'within range'
       ),
+      Detection = factor(Detection, levels = c('below detection', 'within range')),
       Year = year(Date), 
       Month = month(Date, label = T)
     ) 
@@ -212,7 +213,7 @@ obsp1 <- reactive({
     geom_point(aes(colour = Detection)) + 
     thm1 + 
     # scale_y_log10() + 
-    scale_colour_manual(values = c('tomato1', 'black')) + 
+    scale_colour_manual(values = c('tomato1', 'black'), drop = F) + 
     labs(
       subtitle = stasel, 
       title = ttl, 

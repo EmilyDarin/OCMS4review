@@ -87,7 +87,7 @@ tsdat <- ts_dat %>%
   ) %>% 
   rename(StationCode = Station) %>% 
   left_join(tsstat, by = 'StationCode') %>%
-  select(StationCode, Watershed, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
+  select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
   
 # remove stations with less than 15 obs
 tsdat <- tsdat %>% 
