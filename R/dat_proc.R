@@ -279,7 +279,6 @@ thrs <- scns %>%
     
 save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')
 
-
 # optimal effort by station, constituent ----------------------------------
 
 source('R/funcs.R')
@@ -300,3 +299,69 @@ opteff <- pows %>%
   ungroup
 
 save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
+
+# power analysis for trends, tissue data -----------------------------------------------
+
+data(tsdat)
+
+# tops
+ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
+tops <- table(tsdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% c(., ext) %>% sort
+
+powdat <- tsdat %>% 
+  filter(Parameter %in% tops)
+
+scns <- crossing(
+  sta = unique(powdat$StationCode),
+  par = unique(powdat$Parameter), 
+  chg = seq(0.1, 1, length = 10),
+  eff = seq(0.1, 2,length = 10)
+)
+
+# setup parallel backend
+ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 15 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  sta <- scns[i, ][['sta']]
+  par <- scns[i, ][['par']]
+  chg <- scns[i, ][['chg']]
+  eff <- scns[i, ][['eff']]
+  
+  topow <- powdat %>% 
+    filter(StationCode %in% sta) %>% 
+    filter(Parameter %in% par) %>% 
+    arrange(Date)
+  
+  simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
+  
+  if(inherits(simdat, 'try-error'))
+    return(NA)
+  
+  out <- try({powfun(simdat)})
+  
+  if(inherits(out, 'try-error'))
+    return(NA)
+  
+  return(out)
+  
+}
+
+# combine results with scns
+tspows <- scns %>% 
+  mutate(
+    pow = unlist(res)
+  )
+
+save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')

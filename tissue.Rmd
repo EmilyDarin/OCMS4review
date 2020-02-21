@@ -177,7 +177,7 @@ invtab <- reactive({
     
 })
 
-# selected station, parameter data
+# selected station, parameter data, values are median for unique days
 stapardat <- reactive({
 
   # inputs
@@ -198,7 +198,10 @@ stapardat <- reactive({
       Detection = factor(Detection, levels = c('below detection', 'within range')),
       Year = year(Date),
       Month = month(Date, label = T)
-    )
+    ) %>% 
+    group_by(StationCode, Date, Parameter, Units, Detection, Year, Month) %>% 
+    summarise(Result = median(Result, na.rm = T)) %>% 
+    ungroup()
 
   validate(
     need(nrow(out) > 0, 'No data in selection')
@@ -284,519 +287,208 @@ obsp3 <- reactive({
 
 })
 
-# # trend data
-# trnddat <- reactive({
-#   
-#   # input
-#   stapardat <- stapardat()
-#   
-#   out <- try({stapardat %>%
-#     group_by(Parameter, Year) %>%
-#     summarise(
-#       Result = mean(Result, na.rm = T),
-#     ) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = mean(Result, na.rm = T),
-#       dev = Result - avg
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       avg = round(avg, 2),
-#       Parameter = paste0(Parameter, ' (', avg, ')')
-#     )
-#   })
-#   
-#   return(out)
-#   
-# })
-# 
-# # first trend plot
-# trndp1 <- reactive({
-#   
-#   # input
-#   trnddat <- trnddat()
-#   stasel <- input$stasel
-#   
-#   validate(
-#     need(!inherits(trnddat, 'try-error'), 'Insufficient data')
-#   )
-#   
-#   subttl <- paste0(stasel, ', average in parentheses on y-axis')
-#   
-#   p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
-#     geom_bar(stat = 'identity', colour = 'grey') +
-#     scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(axis.title.y = element_blank()) +
-#     geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
-#     # scale_y_log10() +
-#     # scale_y_continuous('Density (fish/100ft)') +
-#     geom_hline(aes(yintercept = 0)) +
-#     labs(
-#       title = 'Deviation from annual averages by constituent (mg/L)',
-#       subtitle = subttl
-#     ) + 
-#     guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
-#   
-#   return(p)
-#     
-# })
-# 
-# # first trend table
-# trndtab1 <- reactive({
-#   
-#   # input
-#   trnddat <- trnddat()
-#   
-#   validate(
-#     need(!inherits(trnddat, 'try-error'), 'Insufficient data')
-#   )
-#   
-#   mods <- trnddat %>%
-#     group_by(Parameter) %>%
-#     nest %>%
-#     mutate(
-#       mod = purrr::map(data, function(x) lm(dev ~ Year, x))
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
-#     )
-#   
-#   out <- stargazer(mods$mod, type = 'html',
-#             covariate.labels = c('Year', 'Intercept'),
-#             column.labels = mods$Parameter,
-#             omit.stat = c('adj.rsq', 'ser'),
-#             column.sep.width = '10pt',
-#             dep.var.labels.include = F,
-#             digits = 2
-#             ) %>% 
-#     HTML()
-#   
-#   return(out)
-# 
-# })
-# 
-# # second trend plot
-# trndp2 <- reactive({
-#   
-#   # input
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   
-#   win <- 12
-#   toplo <- stapardat %>%
-#     select(Date, Parameter, Result) %>%
-#     mutate(Date = floor_date(Date, unit = 'month')) %>%
-#     group_by(Date, Parameter) %>%
-#     summarise(Result = mean(Result, na.rm = T)) %>%
-#     # group_by(Parameter) %>%
-#     arrange(Parameter, Date) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       dev = Result - avg
-#     )
-# 
-#   p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(axis.title.y = element_blank()) +
-#     # scale_y_log10() +
-#     labs(
-#       title = paste0('Observed ', varsel),
-#       subtitle = stasel,
-#       ylab = 'Concentration (mg/L)'
-#     )
-# 
-#   p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
-#     geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) +
-#     geom_line(colour = 'black') +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(legend.position = 'right') +
-#     # scale_y_log10() +
-#     scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-#     labs(
-#       title = 'Deviations from annual average',
-#       subtitle = stasel,
-#       ylab = NULL
-#     )
-# 
-#   grid.arrange(
-#     arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
-#   )
-#   
-# })
-# 
-# # second trends table
-# trndtab2 <- reactive({
-#   
-#   # input
-#   stapardat <- stapardat()
-#   
-#   totabs1kn <- stapardat %>%
-#     group_by(Parameter, Year) %>%
-#     summarise(
-#       Result = mean(Result, na.rm = T),
-#     ) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = mean(Result, na.rm = T),
-#       dev = Result - avg
-#     ) %>%
-#     nest %>%
-#     mutate(
-#       res = purrr::map(data, function(x){
-#   
-#         knout <- kendallTrendTest(dev ~ Year, x)
-#         outest <- round(knout$estimate, 2)
-#         outpval <- p_ast(knout$p.value)
-#         nval <- nrow(na.omit(x))
-#         out <- c(n = nval, outest, pval = outpval) %>%
-#           data.frame %>%
-#           t %>%
-#           data.frame %>%
-#           select(-intercept)
-#         return(out)
-#   
-#       })
-#   
-#     ) %>%
-#     select(-data) %>%
-#     unnest(res)
-# 
-#   out <- HTML(knitr::kable(totabs1kn, format = 'html') %>%
-#     kable_styling(full_width = T, font_size = 14))
-#   
-#   return(out)
-#   
-# })
-# 
-# # power analysis data
-# powdat <- reactive({
-#   
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   smpsel <- input$smpsel
-#   
-#   req(varsel)
-#   req(stasel)
-# 
-#   out <- medat %>%
-#     filter(StationCode %in% stasel) %>%
-#     filter(Parameter %in% varsel) %>%
-#     filter(Type %in% smpsel) %>% 
-#     mutate(
-#       Year = year(Date),
-#       Season = yday(Date),
-#       dectime = decimal_date(Date)
-#     )
-# 
-#   return(out)
-#   
-# })
-# 
-# # first power analysis plot
-# powplo1 <- reactive({
-#   
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   powdat <- powdat()
-#   
-#   p <- ggplot(powdat, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     thm2 +
-#     scale_y_log10() +
-#     labs(
-#       title = 'Observed time series',
-#       subtitle = stasel,
-#       xlab = NULL,
-#       y = paste0(varsel, ' (mg/L)')
-#     )
-#   
-#   return(p)
-#   
-# })
-# 
-# # second power plot
-# powplo2 <- reactive({
-#   
-#   # input
-#   powdat <- powdat()
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   
-#   scns <- crossing(
-#     chg = seq(0.3, 1, length = 2),
-#     eff = seq(0.3, 1, length = 2)
-#     ) %>%
-#     group_by(chg, eff) %>%
-#     mutate(
-#       simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)),
-#       sigs = purrr::map(simdat, function(x){
-#   
-#         x <- x %>%
-#           group_by(sims) %>%
-#           nest %>%
-#           mutate(
-#             pval = purrr::map(data, function(x){
-#   
-#               mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic
-#               pf(mod[1], mod[2], mod[3], lower.tail = F)
-#   
-#             }),
-#             sig = case_when(
-#               pval < 0.05 ~ 'sig',
-#               pval >= 0.05 ~ 'nonsig'
-#             )
-#           ) %>%
-#           ungroup %>%
-#           select(sims, sig)
-#   
-#         return(x)
-#   
-#       })
-#     )
-#   
-#   simdat <- scns %>%
-#     select(-sigs) %>%
-#     unnest(simdat)
-#   
-#   sigs <- scns %>%
-#     select(-simdat) %>%
-#     unnest(sigs)
-#   
-#   toplo <- simdat %>%
-#     left_join(sigs, by = c('chg', 'eff', 'sims')) %>%
-#     group_by(chg, eff) %>%
-#     nest %>%
-#     mutate(
-#       pow = purrr::map(data, powfun)
-#     ) %>%
-#     unnest(c(data, pow)) %>%
-#     ungroup %>%
-#     mutate(
-#       chg = paste('change', chg),
-#       eff = paste('effort', eff),
-#       pow = paste('power', pow),
-#       sig = case_when(
-#         sig == 'nonsig' ~ 'Non-significant',
-#         sig == 'sig' ~ 'Significant'
-#       )
-#     ) %>%
-#     unite('grp', chg, eff, pow, sep = ', ')
-#   
-#   p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) +
-#     geom_point(size = 0.2) +
-#     geom_line(alpha = 0.2) +
-#     facet_wrap(~ grp, ncol = 2) +
-#     thm2 +
-#     scale_y_log10() +
-#     scale_colour_manual('', values = c('black', 'tomato1')) +
-#     labs(
-#       title = 'Observed time series (mg/L)',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
-#       y = paste0('log-simulated ', varsel, ' (mg/L)'),
-#       x = NULL
-#     )
-#   
-#   return(p)
-#   
-# })
-# 
-# # third power plot
-# powplo3 <- reactive({
-#   
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   smpsel <- input$smpsel
-#   
-#   toplo <- pows %>% 
-#     filter(sta %in% stasel) %>% 
-#     filter(par %in% varsel) %>% 
-#     filter(wxt %in% smpsel)
-#   
-#   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
-#     # geom_tile() +
-#     geom_contour(aes(colour = stat(level))) +
-#     scale_colour_viridis_c('Power') +
-#     thm2 +
-#     theme(legend.position = 'none') +
-#     # scale_x_continuous(limits = c(0, 1)) +
-#     # scale_y_continuous(limits = c(0, 1)) +
-#     geom_text_contour() +
-#     labs(
-#       y = paste0('Magnitude of trend change (%) of ', varsel),
-#       title = paste0('Power estimates for ', stasel),
-#       subtitle = 'Lines show power for varying sample effort and trend magnitude',
-#       x = 'Relative sample effort'
-#     )
-#   
-#   p
-#   
-# })
-# 
-# # fourth power plot
-# powplo4 <- reactive({
-#   
-#   # inputs
-#   powdat <- powdat()
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   
-#   scns <- crossing(
-#     thr = seq(1, 10, length = 2),
-#     eff = seq(0.1, 1, length = 2)) %>%
-#     group_by(thr, eff) %>%
-#     mutate(
-#       simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
-#     )
-#   
-#   toplo <- scns %>%
-#     unnest(simdat) %>%
-#     ungroup %>%
-#     mutate(
-#       thr = paste('exceedance', thr),
-#       eff = paste('effort', eff)
-#     ) %>%
-#     unite('grp', thr, eff, sep = ', ', remove = F) %>%
-#     mutate(
-#       thr = gsub('^exceedance\\s', '', thr) %>% as.numeric,
-#       val = case_when(
-#         exp(simrand) > thr ~ 'Value above',
-#         exp(simrand) <= thr ~'Value below'
-#       )
-#     )
-#   
-#   p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) +
-#     geom_line(alpha = 0.2) +
-#     geom_point(size = 0.5, aes(shape = val, col = val)) +
-#     geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-#     facet_wrap(~ grp, nrow = 2) +
-#     thm2 +
-#     scale_y_log10() +
-#     scale_colour_manual(NULL, values = c('tomato1', 'black')) +
-#     scale_shape_manual(NULL, values = c(24, 25)) +
-#     labs(
-#       title = 'Observed time series (mg/L)',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
-#       y = paste0('log-simulated ', varsel, ' (mg/L)'),
-#       x = NULL
-#     )
-#   
-#   p
-#   
-# })
-# 
-# # fifth power plot
-# powplo5 <- reactive({
-#   
-#   # inputs
-#   powdat <- powdat()
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   
-#   scns <- crossing(
-#     thr = seq(1, 10, length = 2),
-#     eff = seq(0.1, 1, length = 2)) %>%
-#     group_by(thr, eff) %>%
-#     mutate(
-#       simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
-#     )
-#   
-#   toplo <- scns %>%
-#     mutate(
-#       yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) {
-#   
-#         out <- simdat %>%
-#           mutate(simrand = exp(simrand)) %>%
-#           group_by(Year) %>%
-#           summarise(
-#             aveval = mean(simrand),
-#             minval = t.test(simrand)$conf.int[1],
-#             maxval = t.test(simrand)$conf.int[2]
-#           ) %>%
-#           mutate(sig = case_when(
-#             maxval > thr ~ 'detected',
-#             maxval < thr ~ 'not detected'
-#             )
-#           )
-#   
-#         return(out)
-#   
-#       })
-#     ) %>%
-#     unnest(yrspow) %>%
-#     ungroup %>%
-#     mutate(
-#       thr = paste('exceedance', thr),
-#       eff = paste('effort', eff)
-#     ) %>%
-#     unite('grp', thr, eff, sep = ', ', remove = F) %>%
-#     mutate(thr = gsub('^exceedance\\s', '', thr) %>%  as.numeric)
-# 
-#   p <- ggplot(toplo, aes(x = factor(Year), y = aveval)) +
-#     geom_bar(stat = 'identity', aes(fill = sig)) +
-#     geom_errorbar(aes(ymin = minval, ymax = maxval, color = sig), width = 0) +
-#     geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-#     scale_colour_manual(NULL, values = c('tomato1', 'black')) +
-#     scale_fill_manual(NULL, values = c('tomato1', 'black')) +
-#     facet_wrap(~ grp, nrow = 2) +
-#     thm2 +
-#     labs(
-#       title = 'Ability to detect exceedance by year',
-#       subtitle = paste0(stasel, ', twenty simulations per scenario'),
-#       y = paste0(varsel, ' concentration (mg/L)'),
-#       x = NULL
-#     )
-#   
-#   return(p)
-#   
-# })
-# 
-# # sixth power plot
-# powplo6 <- reactive({
-#   
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   
-#   toplo <- thrs %>% 
-#     filter(StationCode %in% stasel) %>% 
-#     filter(Parameter %in% varsel)
-#   
-#   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
-#     # geom_tile() +
-#     geom_contour(aes(colour = stat(level))) +
-#     scale_colour_viridis_c('Power') +
-#     thm2 +
-#     theme(legend.position = 'none') +
-#     scale_x_continuous(limits = c(0, 1)) +
-#     # scale_y_continuous(limits = c(0, 1)) +
-#     geom_text_contour() +
-#     labs(
-#       y = paste0('Concentration of ', varsel),
-#       title = paste0('Power estimates for ', stasel),
-#       subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
-#       x = 'Relative sample effort'
-#     )
-# 
-#   
-#   p
-#   
-# })
-# 
+# trend data
+trnddat <- reactive({
+
+  # input
+  stapardat <- stapardat()
+
+  out <- try({stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    ungroup %>%
+    mutate(
+      avg = round(avg, 2),
+      Parameter = paste0(Parameter, ' (', avg, ')')
+    )
+  })
+
+  return(out)
+
+})
+
+# first trend plot
+trndp1 <- reactive({
+
+  # input
+  trnddat <- trnddat()
+  stasel <- input$stasel
+
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
+
+  subttl <- paste0(stasel, ', average in parentheses on y-axis')
+
+  p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
+    geom_bar(stat = 'identity', colour = 'grey') +
+    scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    theme(axis.title.y = element_blank()) +
+    geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
+    # scale_y_log10() +
+    # scale_y_continuous('Density (fish/100ft)') +
+    geom_hline(aes(yintercept = 0)) +
+    labs(
+      title = 'Deviation from annual averages by constituent (mg/L)',
+      subtitle = subttl
+    ) +
+    guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
+
+  return(p)
+
+})
+
+# first trend table
+trndtab1 <- reactive({
+
+  # input
+  trnddat <- trnddat()
+
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
+
+  mods <- trnddat %>%
+    group_by(Parameter) %>%
+    nest %>%
+    mutate(
+      mod = purrr::map(data, function(x) lm(dev ~ Year, x))
+    ) %>%
+    ungroup %>%
+    mutate(
+      Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
+    )
+
+  out <- stargazer(mods$mod, type = 'html',
+            covariate.labels = c('Year', 'Intercept'),
+            column.labels = mods$Parameter,
+            omit.stat = c('adj.rsq', 'ser'),
+            column.sep.width = '10pt',
+            dep.var.labels.include = F,
+            digits = 2
+            ) %>%
+    HTML()
+
+  return(out)
+
+})
+
+# second trends table
+trndtab2 <- reactive({
+
+  # input
+  stapardat <- stapardat()
+
+  totabs1kn <- stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    nest %>%
+    mutate(
+      res = purrr::map(data, function(x){
+
+        knout <- kendallTrendTest(dev ~ Year, x)
+        outest <- round(knout$estimate, 2)
+        outpval <- p_ast(knout$p.value)
+        nval <- nrow(na.omit(x))
+        out <- c(n = nval, outest, pval = outpval) %>%
+          data.frame %>%
+          t %>%
+          data.frame %>%
+          select(-intercept)
+        return(out)
+
+      })
+
+    ) %>%
+    select(-data) %>%
+    unnest(res)
+
+  out <- HTML(knitr::kable(totabs1kn, format = 'html') %>%
+    kable_styling(full_width = T, font_size = 14))
+
+  return(out)
+
+})
+
+# third power plot
+powplo3 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+
+  toplo <- tispows %>%
+    filter(sta %in% stasel) %>%
+    filter(par %in% varsel)
+
+  p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
+    # geom_tile() +
+    geom_contour(aes(colour = stat(level))) +
+    scale_colour_viridis_c('Power') +
+    thm2 +
+    theme(legend.position = 'none') +
+    # scale_x_continuous(limits = c(0, 1)) +
+    # scale_y_continuous(limits = c(0, 1)) +
+    geom_text_contour() +
+    labs(
+      y = paste0('Magnitude of trend change (%) of ', varsel),
+      title = paste0('Power estimates for ', stasel),
+      subtitle = 'Lines show power for varying sample effort and trend magnitude',
+      x = 'Relative sample effort'
+    )
+
+  p
+
+})
+
+# sixth power plot
+powplo6 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+
+  toplo <- tisthrs %>%
+    filter(StationCode %in% stasel) %>%
+    filter(Parameter %in% varsel)
+
+  p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
+    # geom_tile() +
+    geom_contour(aes(colour = stat(level))) +
+    scale_colour_viridis_c('Power') +
+    thm2 +
+    theme(legend.position = 'none') +
+    scale_x_continuous(limits = c(0, 1)) +
+    # scale_y_continuous(limits = c(0, 1)) +
+    geom_text_contour() +
+    labs(
+      y = paste0('Concentration of ', varsel),
+      title = paste0('Power estimates for ', stasel),
+      subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
+      x = 'Relative sample effort'
+    )
+
+
+  p
+
+})
+
 # # comparison of time series for stations
 # stapardat2 <- reactive({
 #   
@@ -1435,47 +1127,21 @@ sums <- tsdat %>%
   filter(Parameter %in% tops) %>% 
   select(StationCode, Parameter, Year) %>% 
   unique %>% 
-  count(Year, StaitonCode) %>% 
-  
-  
-  
-  
-  
-  bind_rows(group_by(., Year) %>%
-              summarise(n = sum(n)) %>%
-              mutate(Watershed = 'Total')) %>%
-  bind_rows(group_by(., Watershed) %>%
-              summarise(n=sum(n)) %>%
-              mutate(Year = 'Total')) %>%
-  spread(Year,n,fill=0)
-alltot <- sums %>% 
-  filter(Watershed != 'Total')
-coltot <- sums %>% 
-  filter(Watershed == 'Total')
-totab <- bind_rows(alltot, coltot)
-HTML(knitr::kable(totab, format = 'html', caption = "Top parameters by year") %>% 
+  count(StationCode, Parameter) %>% 
+  spread(Parameter, n, fill = 0)
+HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample years at each site, by parameter") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
 ```{r toptabmo}
-sums <- tsdat %>% 
-  mutate(Month = month(Date, label = TRUE)) %>% 
+sums <- tsdat %>%
+  mutate(Month = as.character(month(Date))) %>% 
   filter(Parameter %in% tops) %>% 
-  count(Month, Watershed) %>% 
-  bind_rows(group_by(., Month) %>%
-              summarise(n = sum(n)) %>%
-              mutate(Watershed = 'Total')) %>%
-  bind_rows(group_by(., Watershed) %>%
-              summarise(n=sum(n)) %>%
-              mutate(Month = 'Total')) %>%
-  mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Total"))) %>%
-  spread(Month,n,fill=0)
-alltot <- sums %>% 
-  filter(Watershed != 'Total')
-coltot <- sums %>% 
-  filter(Watershed == 'Total')
-totab <- bind_rows(alltot, coltot)
-HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by month") %>% 
+  select(StationCode, Parameter, Month) %>% 
+  unique %>% 
+  count(StationCode, Parameter) %>% 
+  spread(Parameter, n, fill = 0)
+HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample months at each site, by parameter") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
@@ -1502,29 +1168,23 @@ renderPlot({obsp2()}, height = 300, width = 700)
 renderPlot({obsp3()}, height = 300, width = 700)
 ```
 
-<!-- ### Trends -->
+### Trends
 
-<!-- ```{r} -->
-<!-- renderPlot({trndp1()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({trndp1()}, height = 350, width = 900)
+```
 
-<!-- This table shows the regression results from the above plot. -->
+This table shows the regression results from the above plot.
 
-<!-- ```{r, results='asis'} -->
-<!-- renderUI({trndtab1()}) -->
-<!-- ``` -->
+```{r, results='asis'}
+renderUI({trndtab1()})
+```
 
-<!-- The plots below show the observed time series (left) with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right). -->
+Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-<!-- ```{r} -->
-<!-- renderPlot({trndp2()}, height = 350, width = 900) -->
-<!-- ``` -->
-
-<!-- Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test. -->
-
-<!-- ```{r, results = 'asis'} -->
-<!-- renderUI({trndtab2()}) -->
-<!-- ``` -->
+```{r, results = 'asis'}
+renderUI({trndtab2()})
+```
 
 <!-- ### Power analyses -->
 
