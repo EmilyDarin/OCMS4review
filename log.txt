@@ -1,2 +1,2 @@
-120000 of 120000 
-Time difference of 7.814945 hours
+28800 of 28800 
+Time difference of 1.540715 hours
