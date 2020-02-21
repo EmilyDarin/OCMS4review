@@ -123,7 +123,33 @@ invtab <- reactive({
     cap <- 'Number of observations at each site'
   
   }
-        
+       
+  if(tabtyp == 'Number of unique sample days'){
+    
+    sums <- sums %>% 
+      select(Parameter, StationCode, Date) %>% 
+      unique %>% 
+      count(Parameter, StationCode) %>% 
+      bind_rows(group_by(., Parameter) %>%
+                summarise(n=sum(n)) %>%
+                mutate(StationCode='Total')) %>%
+      bind_rows(group_by(., StationCode) %>%
+                summarise(n=sum(n)) %>%
+                mutate(Parameter='Total')) %>%
+      spread(Parameter, n, fill=0) %>% 
+      select_at(c('StationCode', tops, 'Total'))
+  
+    alltot <- sums %>% 
+      filter(StationCode != 'Total')
+    coltot <- sums %>% 
+      filter(StationCode == 'Total')
+    
+    totab <- bind_rows(alltot, coltot)
+    
+    cap <- 'Number of unique sample days at each site'
+  
+  }
+  
   if(tabtyp == 'Variance'){
     
     totab <- sums %>% 
@@ -1394,13 +1420,63 @@ leafsync::sync(m1a, m2a, ncol = 1)
 ```{r}
 column(12, 
        column(4, 
-         selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Variance', 'Median absolute deviation'))
+         selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Number of unique sample days', 'Variance', 'Median absolute deviation'))
        )
 )
 ```
 
 ```{r}
 renderUI(invtab())
+```
+
+```{r toptabyr}
+sums <- tsdat %>%
+  mutate(Year = as.character(year(Date))) %>% 
+  filter(Parameter %in% tops) %>% 
+  select(StationCode, Parameter, Year) %>% 
+  unique %>% 
+  count(Year, StaitonCode) %>% 
+  
+  
+  
+  
+  
+  bind_rows(group_by(., Year) %>%
+              summarise(n = sum(n)) %>%
+              mutate(Watershed = 'Total')) %>%
+  bind_rows(group_by(., Watershed) %>%
+              summarise(n=sum(n)) %>%
+              mutate(Year = 'Total')) %>%
+  spread(Year,n,fill=0)
+alltot <- sums %>% 
+  filter(Watershed != 'Total')
+coltot <- sums %>% 
+  filter(Watershed == 'Total')
+totab <- bind_rows(alltot, coltot)
+HTML(knitr::kable(totab, format = 'html', caption = "Top parameters by year") %>% 
+       kable_styling(full_width = T, font_size = 14))
+```
+
+```{r toptabmo}
+sums <- tsdat %>% 
+  mutate(Month = month(Date, label = TRUE)) %>% 
+  filter(Parameter %in% tops) %>% 
+  count(Month, Watershed) %>% 
+  bind_rows(group_by(., Month) %>%
+              summarise(n = sum(n)) %>%
+              mutate(Watershed = 'Total')) %>%
+  bind_rows(group_by(., Watershed) %>%
+              summarise(n=sum(n)) %>%
+              mutate(Month = 'Total')) %>%
+  mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Total"))) %>%
+  spread(Month,n,fill=0)
+alltot <- sums %>% 
+  filter(Watershed != 'Total')
+coltot <- sums %>% 
+  filter(Watershed == 'Total')
+totab <- bind_rows(alltot, coltot)
+HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by month") %>% 
+       kable_styling(full_width = T, font_size = 14))
 ```
 
 ## Trends and power analyses {.tabset .tabset-pills}
