@@ -234,7 +234,7 @@ obsp1 <- reactive({
     labs(
       subtitle = stasel,
       title = ttl,
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
@@ -259,7 +259,7 @@ obsp2 <- reactive({
     labs(
       subtitle = stasel,
       title = paste(ttl, 'by year'),
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
@@ -284,7 +284,7 @@ obsp3 <- reactive({
     labs(
       subtitle = stasel,
       title = paste(ttl, 'by month'),
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
@@ -342,7 +342,7 @@ trndp1 <- reactive({
     # scale_y_continuous('Density (fish/100ft)') +
     geom_hline(aes(yintercept = 0)) +
     labs(
-      title = 'Deviation from annual averages by constituent (mg/L)',
+      title = 'Deviation from annual averages by constituent',
       subtitle = subttl
     ) +
     guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
@@ -474,7 +474,7 @@ powplo1 <- reactive({
       title = 'Observed time series',
       subtitle = stasel,
       xlab = NULL,
-      y = paste0(varsel, ' (mg/L)')
+      y = paste0(varsel, '')
     )
   
   return(p)
@@ -591,7 +591,7 @@ obsp4 <- reactive({
     scale_colour_manual(values = c('tomato1', 'black')) +
     labs(
       title = ttl,
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
@@ -615,7 +615,7 @@ obsp5 <- reactive({
     # scale_colour_manual(values = c('tomato1', 'black')) +
     labs(
       title = paste(ttl, 'by year'),
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
@@ -639,7 +639,7 @@ obsp6 <- reactive({
     # scale_colour_manual(values = c('tomato1', 'black')) +
     labs(
       title = paste(ttl, 'by month'),
-      y = 'Concentration (mg/L)'
+      y = 'Concentration'
     )
 
   return(p)
