@@ -84,6 +84,8 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(tsdat)
+data(tspow)
+data(tsthrs)
 
 # tops
 ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
@@ -489,33 +491,36 @@ powplo6 <- reactive({
 
 })
 
-# # comparison of time series for stations
-# stapardat2 <- reactive({
-#   
-#   # inputs
-#   stasel2 <- input$stasel2
-#   stasel3 <- input$stasel3
-#   varsel2 <- input$varsel2
-# 
-#   req(varsel2)
-#   
-#   out <- medat %>% 
-#     filter(StationCode %in% c(stasel2, stasel3)) %>% 
-#     mutate(
-#       Detection = case_when(
-#         Qualifier %in% '<' ~ 'below detection', 
-#         T ~ 'within range'
-#       ),
-#       Year = year(Date), 
-#       Month = month(Date, label = T), 
-#       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
-#     ) %>%
-#     filter(Parameter %in% varsel2)
-#     
-#   return(out)
-#   
-# })
-# 
+# comparison of time series for stations
+stapardat2 <- reactive({
+
+  # inputs
+  stasel2 <- input$stasel2
+  stasel3 <- input$stasel3
+  varsel2 <- input$varsel2
+
+  req(varsel2)
+
+  out <- tsdat %>%
+    filter(StationCode %in% c(stasel2, stasel3)) %>%
+    mutate(
+      Detection = case_when(
+        Qualifier %in% '<' ~ 'below detection',
+        T ~ 'within range'
+      ),
+      Year = year(Date),
+      Month = month(Date, label = T),
+      StationCode = factor(StationCode, levels = c(stasel2, stasel3))
+    ) %>%
+    filter(Parameter %in% varsel2) %>% 
+    group_by(StationCode, Date, Parameter, Units, Detection, Year, Month) %>% 
+    summarise(Result = median(Result, na.rm = T)) %>% 
+    ungroup()
+
+  return(out)
+
+})
+
 # # fourth observed plot
 # obsp4 <- reactive({
 #   
