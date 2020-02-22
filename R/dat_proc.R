@@ -451,7 +451,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv',
 }
 
 # combine results with scns
-tisthrs <- scns %>% 
+tsthrs <- scns %>% 
   bind_cols(enframe(res)) %>% 
   select(-data, -name) %>%   
   mutate(
@@ -465,18 +465,17 @@ tisthrs <- scns %>%
       
     })
   ) %>% 
-  unnest(value) %>% 
-  select(-value)
+  unnest(value)
 
-save(tisthrs, file = here::here('data', 'tisthrs.RData'), compress = 'xz')
+save(tsthrs, file = here::here('data', 'tsthrs.RData'), compress = 'xz')
 
 # tissue optimal effort by station, constituent ----------------------------------
 
 source('R/funcs.R')
 
-data(tispows)
+data(tspows)
 
-tisopteff <- tispows %>% 
+tsopteff <- tspows %>% 
   crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
   group_by(par, sta, powin) %>% 
   nest %>% 
@@ -489,5 +488,5 @@ tisopteff <- tispows %>%
   na.omit %>% 
   ungroup
 
-save(tisopteff, file = here::here('data', 'tisopteff.RData'), compress = 'xz')
+save(tsopteff, file = here::here('data', 'tsopteff.RData'), compress = 'xz')
 
