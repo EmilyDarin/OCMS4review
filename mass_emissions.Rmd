@@ -1526,7 +1526,7 @@ This plot shows a summary of power for several efforts and trends. Power is base
 renderPlot({powplo3()}, height =650, width = 900)
 ```
 
-An alternative power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 1 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 10 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.
+A second power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 1 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 10 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.
 
 ```{r}
 renderPlot({powplo4()}, height = 550, width = 900)
