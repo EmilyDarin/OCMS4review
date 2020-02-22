@@ -1186,45 +1186,21 @@ Kendall tests also provide an indication of a trend by evaluating magnitude, dir
 renderUI({trndtab2()})
 ```
 
-<!-- ### Power analyses -->
+### Power analyses
 
-<!-- A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every ~14 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency. -->
+A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits ~2x per year across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.
 
-<!-- The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.  The power analyses are specific to the characteristics of the time series at this station. -->
+This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo1()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo3()}, height =650, width = 900)
+```
 
-<!-- This plot shows 20 simulated time series of `r renderText(input$varsel)` trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 30\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the top right, a trend of 30\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. -->
+An alternative power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo2()}, height = 550, width = 900) -->
-<!-- ``` -->
-
-<!-- This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above). -->
-
-<!-- ```{r} -->
-<!-- renderPlot({powplo3()}, height =650, width = 900) -->
-<!-- ``` -->
-
-<!-- An alternative power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 1 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 10 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort.  Observations above the threshold are shown in red. -->
-
-<!-- ```{r} -->
-<!-- renderPlot({powplo4()}, height = 550, width = 900) -->
-<!-- ``` -->
-
-<!-- This plot shows the uncertainty associated with the average esimated concentration within each year.  The estimates served as a proxy for power given the sample effort and exceedance threshold. -->
-
-<!-- ```{r} -->
-<!-- renderPlot({powplo5()}, height = 550, width = 900) -->
-<!-- ``` -->
-
-<!-- Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above). -->
-
-<!-- ```{r} -->
-<!-- renderPlot({powplo6()}, height = 650, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo6()}, height = 650, width = 900)
+```
 
 
 <!-- ### Optimal effort by constituent -->
