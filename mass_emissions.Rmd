@@ -30,6 +30,7 @@ library(patchwork)
 library(ggrepel)
 library(ggExtra)
 library(plotly)
+library(matrixStats)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -1148,10 +1149,26 @@ optdat <- reactive({
   varsel <- input$varsel
   powsel <- input$powsel
   smpsel <- input$smpsel
-  
+
   dat <- pows %>% 
     filter(par %in% varsel) %>% 
     filter(wxt %in% smpsel)
+
+  # get weighting for optimal value
+  # stations with median value closest to median are given highest weight
+  # farther from median, weight decreases
+  meddat <- medat %>% 
+    filter(Parameter %in% varsel) %>% 
+    filter(StationCode %in% dat$sta) %>% 
+    group_by(StationCode) %>% 
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>% 
+    rename(sta = StationCode)
 
   opts <- dat %>% 
     group_by(sta) %>% 
@@ -1161,10 +1178,11 @@ optdat <- reactive({
     ) %>% 
     dplyr::select(-data) %>% 
     unnest(opt) %>% 
-    dplyr::select(-opt) %>% 
+    dplyr::select(sta, eff, chg) %>% 
     na.omit %>% 
-    ungroup
-  
+    ungroup %>% 
+    left_join(meddat, by = 'sta')
+
   # cut if no data
   validate(
     need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
@@ -1177,10 +1195,26 @@ optdat <- reactive({
     toplo = out,
     opts = opts
   )
+
+  return(out)
+  
+})
+
+# optimal effort as median of all, weighted by site distance from threshold
+optwgtmed <- reactive({
+  
+  # inputs
+  optdat <- optdat()
+  
+  opts <- optdat$opts
+
+  # weighted median
+  out <- weightedMedian(opts$eff, w = opts$qntwgt)
   
   return(out)
   
 })
+
 
 # text for optimal plot 1
 opttxt <- reactive({
@@ -1189,6 +1223,7 @@ opttxt <- reactive({
   powsel <- input$powsel
   smpsel <- input$smpsel
   optdat <- optdat()
+  optwgtmed <- optwgtmed()
   
   smpsel <- case_when(
     smpsel == 'D' ~ 'dry', 
@@ -1197,7 +1232,8 @@ opttxt <- reactive({
   
   opts <- optdat$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel, " power: ", medv , ' relative effort')
+  wgtmedv <- round(optwgtmed, 2)
+  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel, " power: ", medv , ' relative effort (weighted by distance from threshold: ', wgtmedv, ')')
   
   return(out)
   
@@ -1208,6 +1244,7 @@ optplo <- reactive({
   
   # inputs
   optdat <- optdat()
+  optwgtmed <- optwgtmed()
   powsel <- input$powsel
   
   toplo <- optdat$toplo
@@ -1216,6 +1253,7 @@ optplo <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
+    geom_hline(yintercept = optwgtmed, col = 'red') +
     scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
@@ -1228,7 +1266,8 @@ optplo <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = sta), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    scale_size_continuous(guide = F) + 
     scale_x_continuous(limits = c(0.1, 2)) + 
     thm3 +
     labs(
@@ -1264,6 +1303,27 @@ optdat2 <- reactive({
     filter(par %in% !!sels) %>% 
     filter(wxt %in% smpsel)
 
+  # get weighting for optimal value
+  # stations with median value closest to median are given highest weight
+  # farther from median, weight decreases
+  meddat <- medat %>% 
+    filter(Parameter %in% !!sels) %>% 
+    filter(StationCode %in% dat$sta) %>% 
+    group_by(StationCode, Parameter) %>% 
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    group_by(Parameter) %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>%
+    ungroup() %>% 
+    rename(
+      sta = StationCode, 
+      par = Parameter
+      )
+
   opts <- dat %>% 
     group_by(sta, par) %>% 
     nest %>% 
@@ -1275,7 +1335,8 @@ optdat2 <- reactive({
     dplyr::select(-opt) %>% 
     na.omit %>% 
     unite('stapar', sta, par, remove = F) %>% 
-    ungroup
+    ungroup %>% 
+    left_join(meddat,by = c('sta', 'par'))
 
   # cut if no data
   validate(
@@ -1301,6 +1362,38 @@ optdat2 <- reactive({
   
 })
 
+# optimal effort as median of all, weighted by site distance from threshold
+optwgtmed2 <- reactive({
+  
+  # inputs
+  optdat2 <- optdat2()
+  
+  opts <- optdat2$opts
+
+  # weighted median
+  out <- weightedMedian(opts$eff, w = opts$qntwgt)
+  
+  return(out)
+  
+})
+
+# optimal effort as median separat for each parameter, weighted by site distance from threshold
+optwgtmedpar2 <- reactive({
+  
+  # inputs
+  optdat2 <- optdat2()
+  
+  opts <- optdat2$opts
+
+  # weighted median
+  out <- opts %>% 
+    group_by(par) %>% 
+    summarise(wgtmed = weightedMedian(eff, w = qntwgt))
+  
+  return(out)
+  
+})
+
 # text for optimal plot 2
 opttxt2 <- reactive({
   
@@ -1308,6 +1401,7 @@ opttxt2 <- reactive({
   powsel2 <- input$powsel2
   smpsel <- input$smpsel
   optdat2 <- optdat2()
+  optwgtmed2 <- optwgtmed2()
   
   smpsel <- case_when(
     smpsel == 'D' ~ 'dry', 
@@ -1316,7 +1410,8 @@ opttxt2 <- reactive({
   
   opts <- optdat2$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  out <- paste0("Optimal sample effort in ", smpsel, ' weather at ', powsel2, " power: ", medv , ' relative effort')
+  wgtmedv <- round(optwgtmed, 2)
+  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel2, " power: ", medv , ' relative effort (weighted by distance from threshold: ', wgtmedv, ')')
   
   return(out)
   
@@ -1328,6 +1423,8 @@ optplo2 <- reactive({
   # inputs
   optdat2 <- optdat2()
   powsel2 <- input$powsel2
+  optwgtmed2 <- optwgtmed2()
+  optwgtmedpar2 <- optwgtmedpar2()
   
   toplo <- optdat2$toplo
   opts <- optdat2$opts
@@ -1336,6 +1433,7 @@ optplo2 <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
+    geom_hline(yintercept = optwgtmed2, color = 'red') +
     scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
@@ -1348,8 +1446,9 @@ optplo2 <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = stapar), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
     scale_x_continuous(limits = c(0.1, 2)) + 
+    scale_size_continuous(guide = F) + 
     thm3 +
     labs(
       x = 'Relative sample effort', 

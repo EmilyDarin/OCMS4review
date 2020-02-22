@@ -871,7 +871,7 @@ optdat <- reactive({
     ) %>%
     dplyr::select(-data) %>%
     unnest(opt) %>%
-    dplyr::select(-opt) %>%
+    dplyr::select(sta, eff, chg) %>% 
     na.omit %>%
     ungroup
 
