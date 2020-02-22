@@ -300,7 +300,7 @@ opteff <- pows %>%
 
 save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 
-# power analysis for trends, tissue data -----------------------------------------------
+# tissue power analysis for trends -----------------------------------------------
 
 data(tsdat)
 
@@ -365,3 +365,129 @@ tspows <- scns %>%
   )
 
 save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')
+
+# tissue power analysis for threshold values ------------------------------------
+
+data(tsdat)
+
+ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
+tops <- table(tsdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% c(., ext) %>% sort
+
+# data to eval
+scns <- tsdat %>% 
+  filter(Parameter %in% tops) %>% 
+  mutate(
+    Year = year(Date), 
+    Season = yday(Date),
+    dectime = decimal_date(Date)
+  ) %>% 
+  group_by(StationCode, Parameter) %>% 
+  nest
+
+# setup parallel backend
+ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 4 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv', 'EnvStats')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  dat <- scns[i, 'data'] %>% 
+    .[[1]] %>% 
+    .[[1]]
+  
+  # if no variation return NA
+  if(length(unique(dat$Result)) == 1)
+    return(NA)
+  
+  # model to estimate variance components
+  modin <- try({lm(log(Result) ~ dectime, data = dat)})
+  
+  if(inherits(modin, 'try-error'))
+    return(NA)
+  
+  varres <- resid(modin) %>% sd
+  medval <- median(dat$Result, na.rm = T)
+  
+  topval <- qnorm(0.95, medval, varres)
+  
+  grids <- crossing(
+    vals = seq(medval, topval, length.out = 10), 
+    effs = seq(0.1, 1, length.out = 10), 
+    sims = 1:1000,
+  ) %>% 
+    group_by(vals, effs, sims) %>% 
+    mutate(
+      pow = purrr::pmap(list(vals, effs), function(vals, effs, sims){
+        
+        simeff <- nrow(dat) * effs
+        sims <- rnorm(simeff, medval, varres)
+        # browser()
+        # any(sims > vals)
+        pval <- try(t.test(sims, mu = vals, alternative = 'less')$p.value)
+        # pow <- sum(sims > vals) / length(sims)
+        
+        if(inherits(pval, 'try-error'))
+          return(NA)
+        
+        return(pval)
+        
+      })
+    ) %>% 
+    unnest(pow) %>%
+    group_by(vals, effs) %>% 
+    summarise(pow = mean(pow, na.rm = T))
+  
+  return(grids)
+  
+}
+
+# combine results with scns
+tisthrs <- scns %>% 
+  bind_cols(enframe(res)) %>% 
+  select(-data, -name) %>%   
+  mutate(
+    value = purrr::map(value, function(x){
+      if(is.logical(x))
+        out <- tibble(vals = NA, effs = NA, pow = NA)
+      else 
+        out <- x
+      
+      return(out)
+      
+    })
+  ) %>% 
+  unnest(value) %>% 
+  select(-value)
+
+save(tisthrs, file = here::here('data', 'tisthrs.RData'), compress = 'xz')
+
+# tissue optimal effort by station, constituent ----------------------------------
+
+source('R/funcs.R')
+
+data(tispows)
+
+tisopteff <- tispows %>% 
+  crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
+  group_by(par, sta, powin) %>% 
+  nest %>% 
+  mutate(
+    opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
+  ) %>% 
+  dplyr::select(-data) %>% 
+  unnest(opt) %>% 
+  dplyr::select(-opt) %>% 
+  na.omit %>% 
+  ungroup
+
+save(tisopteff, file = here::here('data', 'tisopteff.RData'), compress = 'xz')
+
