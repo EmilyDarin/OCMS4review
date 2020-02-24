@@ -5,6 +5,7 @@ library(mgcv)
 library(doParallel)
 library(foreach)
 library(EnvStats)
+library(readxl)
 
 # dry weather monitoring --------------------------------------------------
 
@@ -96,7 +97,290 @@ tsdat <- tsdat %>%
   ungroup()
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
-  
+
+# loading data ------------------------------------------------------------
+
+# constituents
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus')
+
+# 2011-2012.xlsx ----------------------------------------------------------
+
+tmp1 <- read_excel(here::here('data/raw/meloads/2011-2012.xlsx'), sheet = '2 - Mass Lo-Loads (2)', skip = 2) %>% 
+  .[-1, ] %>% 
+  fill(Station) %>% 
+  select(-Weather, -Sampled) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('\\-[0-9]+', '', Period), 
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+
+# 2012-2013.xlsx ----------------------------------------------------------
+
+tmp2 <- read_excel(here::here('data/raw/meloads/2012-2013.xlsx'), sheet = '1 Table 1', skip = 5) %>% 
+  .[-1, ] %>% 
+  fill(Station) %>% 
+  select(-Sampled) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+
+
+# SAR TAb C-11-ll.1 -------------------------------------------------------
+
+tmp3 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.1.xls'), skip = 2) %>% 
+  .[-1, ] %>% 
+  fill(Station) %>% 
+  select(-Sampled, -Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+
+# SAR TAb C-11-ll.2 -------------------------------------------------------
+
+tmp4 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.2.xls'), skip = 2) %>% 
+  .[-1, ] %>% 
+  fill(Station) %>% 
+  select(-Sampled, -Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+
+
+# Tab C-11.I.1 Mass Emissions Storm Mass Loading --------------------------
+
+tmp5 <- read_excel(here::here('data/raw/meloads/Tab C-11-I.1 Mass Emissions Storm Mass Loading.xlsx'), skip = 0) %>% 
+  .[-1,] %>% 
+  fill(Station) %>% 
+  select(-`Flow Volume`) %>% 
+  gather('Parameter', 'Result', -Station, -Date, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Date), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'Ammonia as N' ~ 'Ammonia', 
+      Parameter %in% 'Ortho Phosphate as P' ~ 'Orthophosphate', 
+      Parameter %in% 'Total Phosphorus as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'Nitrate Nitrite NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'TOTAL') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units) %>% 
+  na.omit
+
+# Tab C-11.II.1 Storm Mass Loading --------------------------
+
+tmp6 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loading.xlsx'), skip = 0) %>% 
+  .[-1,] %>% 
+  fill(Station) %>% 
+  select(-`Volume (Ac-Ft)`) %>% 
+  gather('Parameter', 'Result', -Station, -Date, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Date), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period),
+    Parameter = case_when(
+      Parameter %in% 'Ammonia as N' ~ 'Ammonia', 
+      Parameter %in% 'Ortho Phosphate as P' ~ 'Orthophosphate', 
+      Parameter %in% 'Total Phosphorus as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'Nitrate Nitrite NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'TOTAL') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units) 
+
+# Tab C-11.II.1 Storm Mass Loads --------------------------
+
+tmp7 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loads.xlsx'), skip = 2) %>% 
+  .[-1,] %>% 
+  fill(Station) %>% 
+  select(-`Sampled`, -Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period),
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units) 
+
+# Table C-11.II.1 --------------------------
+
+tmp8 <- read_excel(here::here('data/raw/meloads/Table C-11.II.1.xls'), skip = 5) %>% 
+  .[-1, ] %>% 
+  fill(Station) %>% 
+  select(-Sampled) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'as N' ~ 'Ammonia', 
+      Parameter %in% 'as P' ~ 'Orthophosphate', 
+      Parameter %in% 'as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'As NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+
+# Table C-11.II.1 Storm Mass Loading --------------------------
+
+tmp9 <- read_excel(here::here('data/raw/meloads/Table C-11-II.1 Storm Mass Loading Final.xlsx'), skip = 1) %>% 
+  .[-c(1, 2), ] %>% 
+  rename(
+    Station = `...1`,
+    Period = `...2`,
+    Type = `...3`,
+    Sampled = `...4`,
+  ) %>% 
+  fill(Station) %>% 
+  select(-Sampled) %>% 
+  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  mutate(
+    Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\s\\-\\s[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
+    Period = gsub('\\-[0-9]*', '', Period),
+    Period = mdy(Period), 
+    Parameter = case_when(
+      Parameter %in% 'Tot Ammonia as N' ~ 'Ammonia', 
+      Parameter %in% 'OrthoPhosphate as P' ~ 'Orthophosphate', 
+      Parameter %in% 'TotalPhosphorus as PO4' ~ 'Total Phosphorus', 
+      Parameter %in% 'Nitrate+Nitrite as NO3' ~ 'Nitrate, Nitrite', 
+      Parameter %in% 'TKN' ~ 'Total Kjeldahl Nitrogen', 
+      T ~ Parameter
+    ), 
+    Result = as.numeric(Result),
+    Units = case_when(
+      Parameter %in% !!nutrs ~ 'tons', 
+      Parameter %in% !!metals ~ 'lbs'
+    )
+  ) %>% 
+  filter(Type %in% 'Total') %>% 
+  filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Result, Units) %>% 
+  na.omit
+
+# combine all
+lddat <- bind_rows(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, tmp9) %>% 
+  unique
+
+save(lddat, file = here::here('data/lddat.RData'), compress = 'xz')
+
 # power analysis for trends -----------------------------------------------
 
 data(medat)
