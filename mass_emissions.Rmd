@@ -118,7 +118,7 @@ invtab <- reactive({
   if(tabtyp == 'Number of observations'){
     
     sums <- sums %>% 
-      count(Parameter, StationCode) %>% 
+      dplyr::count(Parameter, StationCode) %>% 
       bind_rows(group_by(., Parameter) %>%
                 summarise(n=sum(n)) %>%
                 mutate(StationCode='Total')) %>%
@@ -1215,7 +1215,6 @@ optwgtmed <- reactive({
   
 })
 
-
 # text for optimal plot 1
 opttxt <- reactive({
   
@@ -1410,7 +1409,7 @@ opttxt2 <- reactive({
   
   opts <- optdat2$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  wgtmedv <- round(optwgtmed, 2)
+  wgtmedv <- round(optwgtmed2, 2)
   out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel2, " power: ", medv , ' relative effort (weighted by distance from threshold: ', wgtmedv, ')')
   
   return(out)
@@ -1446,7 +1445,7 @@ optplo2 <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black', size = 3) + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_x_continuous(limits = c(0.1, 2)) + 
     scale_size_continuous(guide = F) + 
     thm3 +
@@ -1461,10 +1460,13 @@ optplo2 <- reactive({
   pout1 <- ggplotly(p1)#, height = 150, width = 900)
   pout2 <- ggplotly(p2)#, height = 450, width = 900)
   
-  pout3 <- plot_ly(selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>% 
+  pout3 <- plot_ly() %>% 
+    add_trace(data = selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
+    add_trace(data = optwgtmedpar2, y = ~par, x = ~wgtmed, type= 'box', color = I('red'), text = NULL) %>% 
   layout(
     yaxis = list(title = ''), 
-    xaxis = list(title= 'Optimal effort by site')
+    xaxis = list(title= 'Optimal effort by site'), 
+    showlegend = F
     )
 
   out <- subplot(pout3, pout1, pout2, nrows = 3, heights = c(0.45, 0.1, 0.45), shareX = T, titleY = T)
@@ -1650,6 +1652,8 @@ Optimal sample effort was determined for all stations and a selected constituent
 
 The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the trend (y) for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations. 
 
+An alternative "optimal" level was also defined as the weighted median of the optimal effort for each station.  This value is shown by the __red__ vertical line.  The weights are defined as the distance of the median observation for a constituent at a station relative to a threshold, with higher weights assigned to stations with median values closer to the threshold.  Higher weights mean the optimal effort at that station is given higher importance for determining the median value.  
+
 ```{r}
 column(12, 
        column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
@@ -1672,6 +1676,8 @@ Note: Changing the station selection above does not affect the estimates since t
 ### Optimal effort across constituents
 
 This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle boxplot shows the distrubution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort. 
+
+The optimal sample effort weighted by site distances from a threshold is also shown with the vertical __red__ line, shown overall across all constituents and separately for individual constituents. The weights for the weighted median shown in the red line are defined as the distance of the median observation for a constituent at a station relative to a threshold, with higher weights assigned to stations with median values closer to the threshold.  Higher weights mean the optimal effort at that station is given higher importance for determining the median value.  
 
 ```{r}
 column(12, 
