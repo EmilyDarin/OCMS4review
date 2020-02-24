@@ -100,6 +100,12 @@ save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
 # loading data ------------------------------------------------------------
 
+data(medat)
+
+wshd <- medat %>% 
+  select(StationCode, Watershed, Longitude, Latitude) %>% 
+  unique
+
 # constituents
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
             "Zn")
@@ -378,6 +384,10 @@ tmp9 <- read_excel(here::here('data/raw/meloads/Table C-11-II.1 Storm Mass Loadi
 # combine all
 lddat <- bind_rows(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, tmp9) %>% 
   unique
+
+# add watershed
+lddat <- lddat %>% 
+  left_join(wshd, by = 'StationCode')
 
 save(lddat, file = here::here('data/lddat.RData'), compress = 'xz')
 
