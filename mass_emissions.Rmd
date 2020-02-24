@@ -765,7 +765,7 @@ powplo6 <- reactive({
   
   toplo <- thrs %>% 
     filter(StationCode %in% stasel) %>% 
-    filter(Parameter %in% varsel)
+    filter(Parameter %in% varsel) 
   
   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
     # geom_tile() +
@@ -783,7 +783,6 @@ powplo6 <- reactive({
       x = 'Relative sample effort'
     )
 
-  
   p
   
 })
@@ -1149,10 +1148,15 @@ optdat <- reactive({
   varsel <- input$varsel
   powsel <- input$powsel
   smpsel <- input$smpsel
-
+  shdsel <- input$shdsel
+  
+  if(shdsel == 'all')
+    shdsel <- unique(pows$Watershed)
+  
   dat <- pows %>% 
     filter(par %in% varsel) %>% 
-    filter(wxt %in% smpsel)
+    filter(wxt %in% smpsel) %>% 
+    filter(Watershed %in% shdsel)
 
   # get weighting for optimal value
   # stations with median value closest to median are given highest weight
@@ -1292,7 +1296,11 @@ optdat2 <- reactive({
   powsel2 <- input$powsel2
   consel2 <- input$consel2
   smpsel <- input$smpsel
-   
+  shdsel <- input$shdsel
+  
+  if(shdsel == 'all')
+    shdsel <- unique(pows$Watershed)
+  
   if(consel2 == 'organs')
     sels <- c('GLYP', 'Malathion')
   else 
@@ -1300,7 +1308,8 @@ optdat2 <- reactive({
    
   dat <- pows %>% 
     filter(par %in% !!sels) %>% 
-    filter(wxt %in% smpsel)
+    filter(wxt %in% smpsel) %>% 
+    filter(Watershed %in% shdsel)
 
   # get weighting for optimal value
   # stations with median value closest to median are given highest weight
@@ -1536,24 +1545,34 @@ column(12,
        selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs')
   ),
   column(6, 
+       selectInput('shdsel', 'Select watershed:', choices = c('all', unique(pows$Watershed)))
+      )
+  
+)
+
+column(12,
+  column(6, 
        renderUI({
        
          req(input$varsel)
          
          # input
          varsel <- input$varsel
+         shdsel <- input$shdsel
+         
+         if(shdsel == 'all')
+           shdsel <- unique(pows$Watershed)
          
          sels <- medat %>% 
            filter(Parameter %in% varsel) %>% 
+           filter(Watershed %in% shdsel) %>% 
            pull(StationCode) %>% 
            unique
          
          selectInput('stasel', 'Select station:', choices = sels)  
          
        })
-  )
-)
-column(12, 
+  ),
   column(6, 
        renderUI({
        
@@ -1564,7 +1583,10 @@ column(12,
          selectInput('varsel', 'Select constituent:', choices = sels)
          
        })
-  ),
+  )
+)
+
+column(12, 
   column(6, 
        selectInput('smpsel', 'Select sampling weather:', choices = list('dry' = 'D', 'storm'= 'S'))
   )

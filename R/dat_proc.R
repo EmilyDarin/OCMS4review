@@ -179,6 +179,13 @@ pows <- scns %>%
     pow = unlist(res)
   )
 
+# add watersheds
+sheds <- medat %>% 
+  select(sta = StationCode, Watershed) %>% 
+  unique
+pows <- pows %>% 
+  left_join(sheds, by = 'sta')
+  
 save(pows,file = here::here('data', 'pows.RData'), compress = 'xz')
 
 # power analysis for threshold values ------------------------------------
@@ -284,6 +291,7 @@ save(thrs, file = here::here('data', 'thrs.RData'), compress = 'xz')
 source('R/funcs.R')
 
 data(pows)
+data(medat)
 
 opteff <- pows %>% 
   crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
@@ -297,6 +305,13 @@ opteff <- pows %>%
   dplyr::select(-opt) %>% 
   na.omit %>% 
   ungroup
+
+# add watersheds
+sheds <- medat %>% 
+  select(sta = StationCode, Watershed) %>% 
+  unique
+opteff <- opteff %>% 
+  left_join(sheds, by = 'sta')
 
 save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 
