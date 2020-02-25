@@ -98,6 +98,17 @@ tsdat <- tsdat %>%
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
+
+# constituent thresholds --------------------------------------------------
+
+thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>% 
+  select_if(~!any(is.na(.))) %>% 
+  select(-StationCode) %>% 
+  unique %>% 
+  gather('Parameter', 'Threshold', everything())
+
+save(thrsdat, file = here::here('data/thrsdat.RData'), compress = 'xz')
+
 # loading data ------------------------------------------------------------
 
 data(medat)

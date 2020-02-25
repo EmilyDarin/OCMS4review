@@ -76,6 +76,7 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(dwdat)
+data(thrsdat)
 
 # xy locs
 locs <- dwdat %>%
@@ -233,11 +234,26 @@ staplo <- reactive({
   
 })
 
+# get threshold variable
+varthr <- reactive({
+  
+  # input
+  varsel3 <- input$varsel3
+  
+  out <- thrsdat %>% 
+    filter(Parameter %in% varsel3) %>% 
+    pull(Threshold)
+  
+  return(out)
+  
+})
+
 # hotspot input ranges
 hotrng <- reactive({
   
   # inputs
   varsel3 <- input$varsel3
+  varthr <- varthr()
   
   # values for slider
   qnts <- c(0, 0.5, 1)
@@ -246,7 +262,11 @@ hotrng <- reactive({
     pull(Result) %>% 
     quantile(probs = qnts, na.rm = T) %>%
     round(2)
-  
+
+  # make the default selection the threshold if applicable
+  if(length(varthr) != 0)
+    out[2] <- varthr
+    
   return(out)
   
 })
@@ -352,12 +372,19 @@ hotrng2 <- reactive({
   
   # input
   thrsel3 <- input$thrsel3
-  
+
   out <- dwdat %>% 
-    filter(Parameter %in% tops) %>%
+    filter(Parameter %in% c(tops, nutrs)) %>%
     group_by(Parameter) %>% 
     summarise(
       qnt = quantile(Result, probs = as.numeric(thrsel3), na.rm= T)
+    ) %>% 
+    left_join(thrsdat, by = 'Parameter') %>% 
+    mutate(
+      qnt = case_when(
+        is.na(Threshold) ~ qnt, 
+        T ~ Threshold
+      )
     )
   
   return(out)
@@ -376,7 +403,7 @@ hotdat2 <- reactive({
   
   # summary for all dates, stations by selected constituent
   out <- dwdat %>% 
-    filter(Parameter %in% tops) %>%
+    filter(Parameter %in% c(tops, nutrs)) %>%
     left_join(hotrng2, by = 'Parameter') %>% 
     left_join(obsave, by = 'StationCode') %>% 
     filter(n >= cntsel2[1] & n <= cntsel2[2]) %>% 
@@ -896,6 +923,8 @@ renderPlot({staplo()}, height = 500, width = 700)
 
 ## Hotspots {.tabset .tabset-pills}
 
+Hotspots show exceedances relative to regulatory thresholds for each constituent.  Median values are applied in the absence of a threshold, which applies only to TKN, TP, and TN.
+
 ### Individual constituents
 
 ```{r}
@@ -921,7 +950,7 @@ column(12,
                 # input
                 hotrng <- hotrng()
                 
-                numericInput('thrsel2', 'Input threshold (default median):', min = hotrng[1], max = hotrng[3], value = hotrng[2])
+                numericInput('thrsel2', 'Input threshold:', min = hotrng[1], max = hotrng[3], value = hotrng[2])
                 
               })
        ), 
@@ -930,7 +959,16 @@ column(12,
          
                 # input
                 hotrng <- hotrng()
-                out <- paste0("min ", hotrng[1], ', max ', hotrng[3])
+                varthr <- varthr()
+                
+                txt <- paste0("min ", hotrng[1], ', max ', hotrng[3])
+     
+                if(length(varthr) == 0)
+                  out <- paste0(txt, ', default selection is median (no threshold)')
+                
+                if(length(varthr) != 0)
+                  out <- paste0(txt, ', default selection is regulatory threshold')
+                  
                 return(out)
                        
               })
