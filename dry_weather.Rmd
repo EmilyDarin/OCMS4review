@@ -490,6 +490,43 @@ hotplo2 <- reactive({
   
 })
 
+# get threshold variable for watershed plots
+varthr2 <- reactive({
+  
+  # input
+  varsel <- input$varsel
+  
+  out <- thrsdat %>% 
+    filter(Parameter %in% varsel) %>% 
+    pull(Threshold)
+  
+  return(out)
+  
+})
+
+# hotspot input ranges for watershed analysis
+hotrng3 <- reactive({
+  
+  # inputs
+  varsel <- input$varsel
+  varthr2 <- varthr2()
+  
+  # values for slider
+  qnts <- c(0, 0.5, 1)
+  out <- dwdat %>% 
+    filter(Parameter %in% varsel) %>%
+    pull(Result) %>% 
+    quantile(probs = qnts, na.rm = T) %>%
+    round(2)
+
+  # make the default selection the threshold if applicable
+  if(length(varthr2) != 0)
+    out[2] <- varthr2
+    
+  return(out)
+  
+})
+
 # watershed and parameter data for observed plots
 wshpardat <- reactive({
 
@@ -663,6 +700,9 @@ obsp2 <- reactive({
 
   p <- ggplotly(p)
   
+  # remove outliers 
+  p$x$data[[2]]$marker = list(opacity = 0) 
+  
   return(p)
 
 })
@@ -700,6 +740,11 @@ obsp3 <- reactive({
     p <- p + 
       scale_y_log10()
   
+  p <- ggplotly(p)
+  
+  # remove outliers 
+  p$x$data[[2]]$marker = list(opacity = 0) 
+
   return(p)
 
 })
@@ -1044,27 +1089,35 @@ column(12,
        column(4, 
               selectInput('logsel', 'Log scale?', choices = c(F, T))
        ), 
-       column(4, 
+       column(4,
               renderUI({
                 
-                req(nrow(stawshpardat())> 0)
+                # input
+                hotrng3 <- hotrng3()
                 
-                # inputs
-                stawshpardat <- stawshpardat()
-            
-                # get range, ave for selector
-                qnts <- seq(0, 1, by = 0.1)
-                qntval <- stawshpardat %>%
-                  pull(Result) %>% 
-                  quantile(probs = qnts, na.rm = T) %>%
-                  round(2) %>% 
-                  as.list()
-                
-                selectInput('thrsel', 'Select threshold as quantile:', choices = qntval, selected = qntval[10])
-                # sliderInput('thrsel', 'Select threshold:', min = rngval[1], max = rngval[2], value = qntval, width = '600px')
+                numericInput('thrsel', 'Input threshold:', min = hotrng3[1], max = hotrng3[3], value = hotrng3[2])
                 
               })
-        )
+       ), 
+       column(4, 
+              renderText({
+         
+                # input
+                hotrng3 <- hotrng3()
+                varthr2 <- varthr2()
+                
+                txt <- paste0("min ", hotrng3[1], ', max ', hotrng3[3])
+     
+                if(length(varthr2) == 0)
+                  out <- paste0(txt, ', default selection is median (no threshold)')
+                
+                if(length(varthr2) != 0)
+                  out <- paste0(txt, ', default selection is regulatory threshold')
+                  
+                return(out)
+                       
+              })
+       )
 )
 ```
 
