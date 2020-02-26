@@ -32,6 +32,7 @@ library(ggrepel)
 library(ggExtra)
 library(plotly)
 library(matrixStats)
+library(scales)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -90,6 +91,14 @@ data(thrsdat)
 data(pows)
 data(thrs)
 data(opteff)
+
+reverselog_trans <- function(base = exp(1)) {
+    trans <- function(x) -log(x, base)
+    inv <- function(x) base^(-x)
+    trans_new(paste0("reverselog-", format(base)), trans, inv, 
+              log_breaks(base = base), 
+              domain = c(1e-100, Inf))
+}
 
 # constituents
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
@@ -1146,27 +1155,29 @@ optdat <- reactive({
     filter(wxt %in% smpsel) %>% 
     filter(Watershed %in% shdsel)
 
-  # get weighting for optimal value
-  # stations with median value closest to median are given highest weight
-  # farther from median, weight decreases
+  # get median values of constituent for each station
   meddat <- medat %>% 
     filter(Parameter %in% varsel) %>% 
     filter(StationCode %in% dat$sta) %>% 
     group_by(StationCode) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
-    mutate(
-      qntval = ecdf(medval)(medval), 
-      qntdif = case_when(
-        length(varthr) != 0 ~ abs(medval - varthr),
-        T ~ abs(qntval - 0.5)
-      ),
-      qntwgt = case_when(
-        length(varthr) == 0 ~ 1 - qntdif, 
-        length(varthr) != 0 ~ 1 / qntdif
-      )
-    ) %>% 
     rename(sta = StationCode)
+  
+  # use threshold if available
+  if(length(varthr) != 0)
+    meddat <- meddat %>% 
+      mutate(
+        thrdif = abs(medval - varthr),
+        reldif = (thrdif / varthr)
+      )
+  
+  if(length(varthr) == 0)
+    meddat <- meddat %>% 
+      mutate(
+        thrdif = NaN,
+        reldif = NaN
+      )
 
   opts <- dat %>% 
     group_by(sta) %>% 
@@ -1207,7 +1218,7 @@ optwgtmed <- reactive({
   opts <- optdat$opts
 
   # weighted median
-  out <- weightedMedian(opts$eff, w = opts$qntwgt)
+  out <- weightedMedian(opts$eff, w = 1 / opts$reldif)
   
   return(out)
   
@@ -1246,9 +1257,15 @@ optplo <- reactive({
   powsel <- input$powsel
 
   # setup text labels in groups for plotly
+  # sort out size vector for reldif if exists or not
   opts <- optdat$opts %>% 
     mutate(
-      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', chg, ', median concentration: ', medval, ', threshold: ', varthr)
+      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', chg, ', median: ', medval, ', threshold: ', varthr, ', rel. diff: ', round(reldif, 2)
+                    ),
+      relsz = case_when(
+        is.na(reldif) ~ 1,
+        !is.na(reldif) ~ reldif
+      )
     )
   
   # boxplot
@@ -1265,13 +1282,13 @@ optplo <- reactive({
 
   # contour data
   toplo <- optdat$toplo
-  
+
   # contours
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
-    scale_size_continuous(guide = F) + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    scale_size_continuous(guide = F, trans = 'reverse', limits = c(NA, 0)) + 
     scale_x_continuous(limits = c(0.1, 2)) + 
     thm3 +
     labs(
@@ -1312,22 +1329,19 @@ optdat2 <- reactive({
     filter(wxt %in% smpsel) %>% 
     filter(Watershed %in% shdsel)
 
-  # get weighting for optimal value
-  # stations with median value closest to median are given highest weight
-  # farther from median, weight decreases
+  # get medians by station, constituent
+  # estimate relative difference from threshold if available
   meddat <- medat %>% 
     filter(Parameter %in% !!sels) %>% 
     filter(StationCode %in% dat$sta) %>% 
     group_by(StationCode, Parameter) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
-    group_by(Parameter) %>% 
+    left_join(thrsdat, by = 'Parameter') %>% 
     mutate(
-      qntval = ecdf(medval)(medval), 
-      qntdif = abs(qntval - 0.5), 
-      qntwgt = 1 - qntdif
-    ) %>%
-    ungroup() %>% 
+      thrdif = abs(medval - Threshold), 
+      reldif = (thrdif / Threshold)
+    ) %>% 
     rename(
       sta = StationCode, 
       par = Parameter
@@ -1377,10 +1391,11 @@ optwgtmed2 <- reactive({
   # inputs
   optdat2 <- optdat2()
   
-  opts <- optdat2$opts
+  opts <- optdat2$opts %>% 
+    filter(!is.na(Threshold))
 
   # weighted median
-  out <- weightedMedian(opts$eff, w = opts$qntwgt)
+  out <- weightedMedian(opts$eff, w = 1 / opts$reldif)
   
   return(out)
   
@@ -1397,8 +1412,13 @@ optwgtmedpar2 <- reactive({
   # weighted median
   out <- opts %>% 
     group_by(par) %>% 
-    summarise(wgtmed = weightedMedian(eff, w = qntwgt))
-  
+    summarise(
+      wgtmed = case_when(
+        anyNA(reldif) ~ median(eff, na.rm = T), 
+        T ~ weightedMedian(eff, w = 1 / reldif)
+      )
+    )
+
   return(out)
   
 })
@@ -1438,7 +1458,19 @@ optplo2 <- reactive({
   toplo <- optdat2$toplo
   opts <- optdat2$opts
   selopteff <- optdat2$selopteff
-  
+
+  # setup text labels in groups for plotly
+  # sort out size vector for reldif if exists or not
+  opts <- opts %>% 
+    mutate(
+      labs = paste0(sta, ', ', par, ' effort: ', round(eff, 2), ', change: ', chg, ', median: ', medval, ', threshold: ', Threshold, ', rel. diff: ', round(reldif, 2)
+                    ),
+      relsz = case_when(
+        is.na(reldif) ~ max(.$reldif, na.rm = T),
+        !is.na(reldif) ~ reldif
+      )
+    )
+
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
@@ -1455,9 +1487,9 @@ optplo2 <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_x_continuous(limits = c(0.1, 2)) + 
-    scale_size_continuous(guide = F) + 
+    scale_size_continuous(guide = F, trans = reverselog_trans(10)) + 
     thm3 +
     labs(
       x = 'Relative sample effort', 
@@ -1468,7 +1500,7 @@ optplo2 <- reactive({
   # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
   
   pout1 <- ggplotly(p1)#, height = 150, width = 900)
-  pout2 <- ggplotly(p2)#, height = 450, width = 900)
+  pout2 <- ggplotly(p2, tooltip = 'group')#, height = 450, width = 900)
   
   pout3 <- plot_ly() %>% 
     add_trace(data = selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
