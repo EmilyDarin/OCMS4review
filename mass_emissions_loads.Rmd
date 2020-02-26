@@ -524,35 +524,6 @@ disdat <- reactive({
   
   return(dissim)
   
-  # # input
-  # consel3 <- input$consel3
-  # 
-  # if(consel3 == 'organs')
-  #   sels <- c('GLYP', 'Malathion')
-  # else 
-  #   sels <- eval(parse(text = consel3))
-  # 
-  # dissim <- meprp %>% 
-  #   filter(Parameter %in% !!sels) %>% 
-  #   group_by(StationCode, Parameter) %>% 
-  #   summarise(Result = median(Result, na.rm = T)) %>% 
-  #   ungroup %>% 
-  #   spread(Parameter, Result) %>% 
-  #   column_to_rownames('StationCode') %>% 
-  #   vegdist(method = 'euclidean', na.rm = T) %>%
-  #   as.matrix %>%
-  #   as.data.frame %>%
-  #   rownames_to_column('StationCode') %>%
-  #   gather('StationCode2', 'dist', -StationCode) %>%
-  #   left_join(siteshd, by = 'StationCode') %>%
-  #   arrange(Watershed, dist) %>%
-  #   mutate(
-  #     Watershed = factor(Watershed, levels = unique(Watershed)),
-  #     dist = ifelse(StationCode == StationCode2, NA, dist)
-  #   )
-  # 
-  # return(dissim)
-  
 })
 
 # dissimilarity data, all constituents
@@ -1118,15 +1089,15 @@ renderUI(unisel2())
 ```{r}
 column(12, 
   column(6, 
-       selectInput('consel2', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs'),  selected = 'nutrs')
+       selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs'),  selected = 'nutrs')
   ),
   column(6, 
        renderUI({
        
          # input
-         consel2 <- input$consel2
-         
-         sels <- eval(parse(text = consel2))
+         consel4 <- input$consel4
+
+         sels <- eval(parse(text = consel4))
          selectInput('varsel3', 'Select constituent:', choices = sels)
          
        })
