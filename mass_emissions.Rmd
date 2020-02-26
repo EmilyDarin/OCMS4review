@@ -85,6 +85,7 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(medat)
+data(thrsdat)
 data(pows)
 data(thrs)
 data(opteff)
@@ -1141,10 +1142,25 @@ mulplo <- reactive({
       
 })
 
+# treshold value for consituent
+varthr <- reactive({
+  
+  # input
+  varsel <- input$varsel
+  
+  out <- thrsdat %>% 
+    filter(Parameter %in% varsel) %>% 
+    pull(Threshold)
+  
+  return(out)
+  
+})
+
 # optimal sample effort data
 optdat <- reactive({
   
   # input
+  varthr <- varthr()
   varsel <- input$varsel
   powsel <- input$powsel
   smpsel <- input$smpsel
@@ -1157,7 +1173,7 @@ optdat <- reactive({
     filter(par %in% varsel) %>% 
     filter(wxt %in% smpsel) %>% 
     filter(Watershed %in% shdsel)
-
+browser()
   # get weighting for optimal value
   # stations with median value closest to median are given highest weight
   # farther from median, weight decreases
@@ -1169,8 +1185,14 @@ optdat <- reactive({
     ungroup %>% 
     mutate(
       qntval = ecdf(medval)(medval), 
-      qntdif = abs(qntval - 0.5), 
-      qntwgt = 1 - qntdif
+      qntdif = case_when(
+        length(varthr) != 0 ~ abs(medval - varthr),
+        T ~ abs(qntval - 0.5)
+      ),
+      qntwgt = case_when(
+        length(varthr) == 0 ~ 1 - qntdif, 
+        length(varthr) != 0 ~ 1 / qntdif
+      )
     ) %>% 
     rename(sta = StationCode)
 
@@ -1247,11 +1269,15 @@ optplo <- reactive({
   
   # inputs
   optdat <- optdat()
+  varthr <- varthr()
   optwgtmed <- optwgtmed()
   powsel <- input$powsel
-  
-  toplo <- optdat$toplo
-  opts <- optdat$opts
+
+  # setup text labels in groups for plotly
+  opts <- optdat$opts %>% 
+    mutate(
+      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', chg, ', median concentration: ', medval, ', threshold: ', varthr)
+    )
   
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
@@ -1264,12 +1290,15 @@ optplo <- reactive({
       panel.border = element_blank(), 
       panel.grid = element_blank()
     )
+
+  # contour data
+  toplo <- optdat$toplo
   
   # contours
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_size_continuous(guide = F) + 
     scale_x_continuous(limits = c(0.1, 2)) + 
     thm3 +
@@ -1282,7 +1311,7 @@ optplo <- reactive({
   # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
   
   pout1 <- ggplotly(p1, height = 150, width = 900)
-  pout2 <- ggplotly(p2, height = 450, width = 900)
+  pout2 <- ggplotly(p2, height = 450, width = 900, tooltip = 'group')
   
   out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
   return(out)
