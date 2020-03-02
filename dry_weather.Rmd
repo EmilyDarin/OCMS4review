@@ -578,11 +578,34 @@ hotrng3 <- reactive({
 wshpardat <- reactive({
 
   # inputs
-  wshsel <- input$wshsel
+  locsel2 <- input$locsel2
   varsel <- input$varsel
+  tmdsel2 <- as.logical(input$tmdsel2)
+  
+  req(locsel2)
+  
+  if(tmdsel2){
+    
+    grp <- tmdl %>% 
+      filter(Parameter %in% varsel) %>% 
+      pull(grp)
+    stas <- tmdldat %>% 
+      filter(Parameter %in% !!grp) %>% 
+      filter(Receiving %in% locsel2) %>% 
+      pull(StationCode)
+    
+    out <- dwdat %>% 
+      filter(StationCode %in% !!stas)
 
-  out <- dwdat %>%
-    filter(Watershed %in% wshsel) %>%
+  }
+  
+  if(!tmdsel2)
+    out <- dwdat %>%
+      filter(Watershed %in% locsel2)
+  
+  req(exists('out'))
+  
+  out <- out %>% 
     mutate(
       Year = year(Date),
       Month = month(Date, label = T)
@@ -1139,17 +1162,52 @@ renderLeaflet(hotmap2())
 renderPlot(hotplo2(), height = 450, width = 900)
 ```
 
-## Analyses by watershed {.tabset .tabset-pills}
+## Analyses by waterbody {.tabset .tabset-pills}
 
 ```{r}
 column(12, 
        column(4, 
-              selectInput('wshsel', 'Select watershed:', choices = unique(dwdat$Watershed))
+              selectInput('varsel', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
+       ),
+       column(4, 
+              selectInput('tmdsel2', 'Filter by TMDL receiving waterbodies?', choices = c(F, T))
        ),
        column(4,
-               selectInput('varsel', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
+              renderUI({
+                
+                # inputs
+                tmdsel2 <- as.logical(input$tmdsel2)
+                varsel <- input$varsel
+                
+                if(!tmdsel2)
+                  out <- selectInput('locsel2', 'Select watershed:', choices = unique(dwdat$Watershed))
+                
+                if(tmdsel2){
+                  
+                   # get receiving tmdl waterbodies 
+                  grp <- tmdl %>% 
+                    filter(Parameter %in% varsel) %>% 
+                    pull(grp)
+                  locs <- tmdldat %>% 
+                    filter(Parameter %in% !!grp) %>% 
+                    pull(Receiving) %>% 
+                    unique
+                  
+                if(length(locs) == 0)
+                  out <- 'No TMDLs for selection'
+                
+                if(length(locs) > 0)
+                  out <- selectInput("locsel2", label = 'Select TMDL receiving waterbodies:', choices = locs)      
+                
+                }
+                
+                return(out)
+
+              })
        ), 
-       column(4, 
+)
+column(12,
+       column(4,  
               renderUI({
       
                 # input
@@ -1160,9 +1218,7 @@ column(12,
                   options = list(`actions-box` = TRUE, size = 20), selected = stas, multiple = TRUE)      
                 
               })
-        )
-)
-column(12, 
+       ),
        column(4, 
               selectInput('logsel', 'Log scale?', choices = c(F, T))
        ), 
@@ -1175,7 +1231,9 @@ column(12,
                 numericInput('thrsel', 'Input threshold:', min = hotrng3[1], max = hotrng3[3], value = hotrng3[2])
                 
               })
-       ), 
+       )
+)
+column(12,
        column(4, 
               renderText({
          
