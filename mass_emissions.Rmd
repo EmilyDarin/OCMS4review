@@ -33,6 +33,7 @@ library(ggExtra)
 library(plotly)
 library(matrixStats)
 library(scales)
+library(reactable)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -1516,6 +1517,35 @@ optplo2 <- reactive({
   
 })
 
+# tabular data for optimal effort for grouped constituents
+opttab2 <- reactive({
+  
+  optdat2 <- optdat2()
+
+  totab <- optdat2$opts %>% 
+    select(par, sta, eff, medval, Threshold, thrdif, reldif)
+  
+  out <- reactable(totab, 
+                   groupBy = 'par', 
+                   columns = list(
+                     par = colDef(name = 'Constituent'),
+                     sta = colDef(name = 'Station'),
+                     eff = colDef(name = 'Optimal effort'),
+                     medval = colDef(name = 'Median value at station'),
+                     thrdif = colDef(name = 'Diff. of median from threshold'),
+                     reldif = colDef(name = 'Relative difference for weighting')
+                   ),
+                   defaultColDef = colDef(
+                     footerStyle = list(fontWeight = "bold"),
+                     format = colFormat(digits = 2, separators = TRUE),
+                     resizable = TRUE
+                     )
+  )
+  
+  return(out)
+  
+})
+
 # all trends across stations for selected constituent
 alltrnd <- reactive({
   
@@ -1875,6 +1905,15 @@ plotlyOutput('optplo2', height = '700px')
 <br>
 <br>
 Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents for the selected constituent type.  
+
+Tabular data below shows the same results from the plot. 
+
+```{r}
+output$opttab2 <- renderReactable(opttab2()) 
+fillCol(
+  reactableOutput('opttab2')
+)
+```
 
 ## Station differences {.tabset .tabset-pills}
 
