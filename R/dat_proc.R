@@ -98,7 +98,6 @@ tsdat <- tsdat %>%
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
-
 # constituent thresholds --------------------------------------------------
 
 thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>% 
@@ -108,6 +107,29 @@ thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>%
   gather('Parameter', 'Threshold', everything())
 
 save(thrsdat, file = here::here('data/thrsdat.RData'), compress = 'xz')
+
+# dry weather sampling tmdl waterbodies -----------------------------------
+
+tmdldat <- read_csv(here::here('data/raw/tmdlwaterbodies.csv')) %>% 
+  gather('var', 'val', -StationCode) %>% 
+  na.omit() %>% 
+  mutate(
+    ind = gsub('^.*([0-9])$', '\\1', var), 
+    var = gsub('[0-9]', '', var)
+  ) %>% 
+  spread(var, val) %>% 
+  select(StationCode, Receiving = receiving, Parameter = param, ind) %>% 
+  arrange(StationCode, ind) %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter %in% 'Selenium' ~ 'Se', 
+      Parameter %in% 'E. coli' ~ 'EC', 
+      Parameter %in% 'Sediment' ~ 'TSS', 
+      T ~ Parameter
+    )
+  )
+
+save(tmdldat, file = here::here('data/tmdldat.RData'), compress = 'xz')
 
 # loading data ------------------------------------------------------------
 

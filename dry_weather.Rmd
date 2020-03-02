@@ -77,6 +77,7 @@ pbase <- theme_bw(base_family = 'serif') +
 
 data(dwdat)
 data(thrsdat)
+data(tmdldat)
 
 # xy locs
 locs <- dwdat %>%
@@ -113,9 +114,14 @@ hotcol <- colorNumeric(
     domain = c(0, 100)
   )
 
-# nutrients and top ten parameters
+# nutrients, top parameters (top ten plus those with thresholds)
 nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Total Nitrogen', 'Orthophosphate', 'Total Phosphorus')
 tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
+tops <- thrsdat %>% 
+  pull(Parameter) %>% 
+  c(., tops) %>% 
+  unique
+tops <- tops[!tops %in% nutrs]
 ```
 
 ```{r reactives}
