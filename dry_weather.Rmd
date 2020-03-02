@@ -122,6 +122,18 @@ tops <- thrsdat %>%
   c(., tops) %>% 
   unique
 tops <- tops[!tops %in% nutrs]
+
+# lookup list for parameters with thresholds and TMDL waterbodies
+tmdl <- list(
+  EC = 'EC', 
+  Metals = c('Ag', 'As', 'Cd', 'Cr', 'Cu', 'Hg', 'Ni', 'Pb', 'Se', 'Zn'), 
+  Nutrients = c('Ammonia', 'Nitrate, Nitrite'), 
+  Pathogens = c('ENT', 'FC', 'TC'),
+  Pesticides = c('Chlorpyrifos', 'Diazinon', 'Dimethoate', 'Fensulfothion', 'Malathion'), 
+  TSS = 'TSS'
+  ) %>% 
+  enframe('grp', 'Parameter') %>% 
+  unnest(Parameter)
 ```
 
 ```{r reactives}
@@ -285,11 +297,36 @@ hotdat <- reactive({
   varsel3 <- input$varsel3
   dtssel <- input$dtssel
   thrsel2 <- input$thrsel2
-  
+  tmdsel <- as.logical(input$tmdsel)
+  locsel <- input$locsel
   req(thrsel2)
 
+  # filter by tmdl waterbodies
+  if(tmdsel & length(locsel) > 0){
+    
+    grp <- tmdl %>% 
+      filter(Parameter %in% varsel3) %>% 
+      pull(grp) 
+
+    stas <- tmdldat %>% 
+      filter(Parameter %in% !!grp) %>% 
+      filter(Receiving %in% locsel) %>% 
+      select(StationCode, Receiving)
+
+    out <- dwdat %>% 
+      inner_join(stas, by = 'StationCode') %>% 
+      select(-Watershed) %>% 
+      rename(Watershed = Receiving)
+  
+  }
+  
+  if(!tmdsel)
+    out <- dwdat 
+  
+  req(exists('out'))
+  
   # summary for all dates, stations by selected constituent
-  out <- dwdat %>% 
+  out <- out %>% 
     filter(Parameter %in% varsel3) %>%
     group_by(Watershed, StationCode) %>% 
     mutate(n = n()) %>% 
@@ -324,6 +361,8 @@ hotmap <- reactive({
   # input
   hotdat <- hotdat()
   
+  req(nrow(hotdat) > 0)
+  
   tomap <- hotdat %>%
     left_join(locs, by = 'StationCode') %>%
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
@@ -350,6 +389,8 @@ hotplo <- reactive({
   # input
   hotdat <- hotdat()
   dtssel <- input$dtssel
+  
+  req(nrow(hotdat) > 0)
   
   toplo <- hotdat %>% 
     arrange(Watershed, exceeds) %>% 
@@ -949,7 +990,7 @@ column(12,
               selectInput('wshsel2', 'Select watershed:', choices = unique(dwdat$Watershed))
        ),
        column(4, 
-              selectInput('varsel2', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
+              selectInput('varsel2', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
               ),
        column(4, 
               selectInput('tabsel', 'Select table:', choices = c('by year', 'by month'))
@@ -981,20 +1022,50 @@ Hotspots show exceedances relative to regulatory thresholds for each constituent
 ```{r}
 column(12, 
        column(4, 
-              selectInput('varsel3', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
+              selectInput('varsel3', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
        ),
        column(8, 
               sliderInput('dtssel', 'Select date range:', min = dts[1], max = dts[2], value = dts, timeFormat="%Y-%m", width = '600px')
        )
 )
 column(12,
-       column(4, NULL),
+       column(4,
+              selectInput('tmdsel', 'Filter by TMDL receiving waterbodies?', choices = c(F, T))
+       ),
        column(8,
               sliderInput('cntsel', 'Filter stations by total n:', min = 0, max = obsrng[2], value = c(0, obsrng[2]), width = '600px')
        )
 )
 column(12,
-       column(4, NULL),
+       column(4,               
+              renderUI({
+                
+                # input
+                varsel3 <- input$varsel3
+                tmdsel <- as.logical(input$tmdsel)
+                
+                req(tmdsel)
+                
+                # get receiving tmdl waterbodies 
+                grp <- tmdl %>% 
+                  filter(Parameter %in% varsel3) %>% 
+                  pull(grp)
+                locs <- tmdldat %>% 
+                  filter(Parameter %in% !!grp) %>% 
+                  pull(Receiving) %>% 
+                  unique
+                
+                if(length(locs) == 0)
+                  out <- 'No TMDLs for selection'
+                
+                if(length(locs) > 0)
+                  out <- pickerInput(inputId = "locsel", label = 'Select TMDL receiving waterbodies:', choices = locs,
+                    options = list(`actions-box` = TRUE, size = 20), selected = locs, multiple = TRUE)      
+                
+                return(out)
+                
+              })
+       ),
        column(4,
               renderUI({
                 
@@ -1076,7 +1147,7 @@ column(12,
               selectInput('wshsel', 'Select watershed:', choices = unique(dwdat$Watershed))
        ),
        column(4,
-               selectInput('varsel', 'Select constituent:', choices = c(tops, nutrs), selected = 'ENT')
+               selectInput('varsel', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
        ), 
        column(4, 
               renderUI({

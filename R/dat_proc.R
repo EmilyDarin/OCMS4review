@@ -125,6 +125,7 @@ tmdldat <- read_csv(here::here('data/raw/tmdlwaterbodies.csv')) %>%
       Parameter %in% 'Selenium' ~ 'Se', 
       Parameter %in% 'E. coli' ~ 'EC', 
       Parameter %in% 'Sediment' ~ 'TSS', 
+      Parameter %in% 'Pesticides/PCBs' ~ 'Pesticides',
       T ~ Parameter
     )
   )
