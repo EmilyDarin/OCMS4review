@@ -189,11 +189,12 @@ obsp1 <- reactive({
   # inputs
   stapardat <- stapardat()
   stasel <- input$stasel
-  
+
   toplo <- stapardat
   ttl <- unique(toplo$Parameter)
   
-  p <- ggplot(toplo, aes(x = Date, y = Result)) + 
+  # load
+  p1 <- ggplot(toplo, aes(x = Date, y = Result)) + 
     geom_line() + 
     geom_point() + 
     thm1 + 
@@ -204,7 +205,19 @@ obsp1 <- reactive({
       y = 'Load'
     )
   
-  return(p)
+  # flow
+  p2 <- ggplot(toplo, aes(x = Date, y = Flow)) + 
+    geom_line() + 
+    geom_point() + 
+    thm1 + 
+    # scale_y_log10() + 
+    labs(
+      y = 'Flow volume'
+    )
+  
+  out <- p1 + p2 + plot_layout(ncol = 1)
+  
+  return(out)
   
 })
 
@@ -924,7 +937,7 @@ column(12,
 Observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`.
 
 ```{r}
-renderPlot({obsp1()}, height = 350, width = 700)
+renderPlot({obsp1()}, height = 500, width = 700)
 renderPlot({obsp2()}, height = 300, width = 700)
 renderPlot({obsp3()}, height = 300, width = 700)
 ```

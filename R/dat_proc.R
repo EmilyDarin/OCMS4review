@@ -160,8 +160,8 @@ nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosp
 tmp1 <- read_excel(here::here('data/raw/meloads/2011-2012.xlsx'), sheet = '2 - Mass Lo-Loads (2)', skip = 2) %>% 
   .[-1, ] %>% 
   fill(Station) %>% 
-  select(-Weather, -Sampled) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  select(-Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('\\-[0-9]+', '', Period), 
     Period = mdy(Period), 
@@ -181,15 +181,14 @@ tmp1 <- read_excel(here::here('data/raw/meloads/2011-2012.xlsx'), sheet = '2 - M
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units)
 
 # 2012-2013.xlsx ----------------------------------------------------------
 
 tmp2 <- read_excel(here::here('data/raw/meloads/2012-2013.xlsx'), sheet = '1 Table 1', skip = 5) %>% 
   .[-1, ] %>% 
   fill(Station) %>% 
-  select(-Sampled) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -210,7 +209,7 @@ tmp2 <- read_excel(here::here('data/raw/meloads/2012-2013.xlsx'), sheet = '1 Tab
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units)
 
 
 # SAR TAb C-11-ll.1 -------------------------------------------------------
@@ -218,8 +217,8 @@ tmp2 <- read_excel(here::here('data/raw/meloads/2012-2013.xlsx'), sheet = '1 Tab
 tmp3 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.1.xls'), skip = 2) %>% 
   .[-1, ] %>% 
   fill(Station) %>% 
-  select(-Sampled, -Weather) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  select(-Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -240,15 +239,15 @@ tmp3 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.1.xls'), skip = 
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units)
 
 # SAR TAb C-11-ll.2 -------------------------------------------------------
 
 tmp4 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.2.xls'), skip = 2) %>% 
   .[-1, ] %>% 
   fill(Station) %>% 
-  select(-Sampled, -Weather) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  select(-Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -269,7 +268,7 @@ tmp4 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.2.xls'), skip = 
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units)
 
 
 # Tab C-11.I.1 Mass Emissions Storm Mass Loading --------------------------
@@ -277,8 +276,7 @@ tmp4 <- read_excel(here::here('data/raw/meloads/SAR Tab C-11-II.2.xls'), skip = 
 tmp5 <- read_excel(here::here('data/raw/meloads/Tab C-11-I.1 Mass Emissions Storm Mass Loading.xlsx'), skip = 0) %>% 
   .[-1,] %>% 
   fill(Station) %>% 
-  select(-`Flow Volume`) %>% 
-  gather('Parameter', 'Result', -Station, -Date, -Type) %>% 
+  gather('Parameter', 'Result', -Station, -`Flow Volume`, -Date, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Date), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -299,7 +297,7 @@ tmp5 <- read_excel(here::here('data/raw/meloads/Tab C-11-I.1 Mass Emissions Stor
   ) %>% 
   filter(Type %in% 'TOTAL') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Flow = `Flow Volume`, Result, Units) %>% 
   na.omit
 
 # Tab C-11.II.1 Storm Mass Loading --------------------------
@@ -307,8 +305,7 @@ tmp5 <- read_excel(here::here('data/raw/meloads/Tab C-11-I.1 Mass Emissions Stor
 tmp6 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loading.xlsx'), skip = 0) %>% 
   .[-1,] %>% 
   fill(Station) %>% 
-  select(-`Volume (Ac-Ft)`) %>% 
-  gather('Parameter', 'Result', -Station, -Date, -Type) %>% 
+  gather('Parameter', 'Result', -Station, -`Volume (Ac-Ft)`, -Date, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Date), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -329,15 +326,15 @@ tmp6 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loading
   ) %>% 
   filter(Type %in% 'TOTAL') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units) 
+  select(StationCode = Station, Date = Period, Parameter, Flow = `Volume (Ac-Ft)`, Result, Units) 
 
 # Tab C-11.II.1 Storm Mass Loads --------------------------
 
 tmp7 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loads.xlsx'), skip = 2) %>% 
   .[-1,] %>% 
   fill(Station) %>% 
-  select(-`Sampled`, -Weather) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  select(-Weather) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -358,15 +355,14 @@ tmp7 <- read_excel(here::here('data/raw/meloads/Tab C-11-II.1 Storm Mass Loads.x
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units) 
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units) 
 
 # Table C-11.II.1 --------------------------
 
 tmp8 <- read_excel(here::here('data/raw/meloads/Table C-11.II.1.xls'), skip = 5) %>% 
   .[-1, ] %>% 
-  fill(Station) %>% 
-  select(-Sampled) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  fill(Station) %>%  
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\-[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -387,7 +383,7 @@ tmp8 <- read_excel(here::here('data/raw/meloads/Table C-11.II.1.xls'), skip = 5)
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units)
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units)
 
 # Table C-11.II.1 Storm Mass Loading --------------------------
 
@@ -400,8 +396,7 @@ tmp9 <- read_excel(here::here('data/raw/meloads/Table C-11-II.1 Storm Mass Loadi
     Sampled = `...4`,
   ) %>% 
   fill(Station) %>% 
-  select(-Sampled) %>% 
-  gather('Parameter', 'Result', -Station, -Period, -Type) %>% 
+  gather('Parameter', 'Result', -Station, -Sampled, -Period, -Type) %>% 
   mutate(
     Period = gsub('(^[a-z,A-Z]+\\s[0-9]+)\\s\\-\\s[a-z,A-Z]+\\s[0-9]+,\\s([0-9]+)$', '\\1, \\2', Period), 
     Period = gsub('\\-[0-9]*', '', Period),
@@ -422,7 +417,7 @@ tmp9 <- read_excel(here::here('data/raw/meloads/Table C-11-II.1 Storm Mass Loadi
   ) %>% 
   filter(Type %in% 'Total') %>% 
   filter(!Parameter %in% c('as CaCO3', 'TSS', 'VSS')) %>% 
-  select(StationCode = Station, Date = Period, Parameter, Result, Units) %>% 
+  select(StationCode = Station, Date = Period, Parameter, Flow = Sampled, Result, Units) %>% 
   na.omit
 
 # combine all
@@ -431,7 +426,8 @@ lddat <- bind_rows(tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8, tmp9) %>%
 
 # add watershed
 lddat <- lddat %>% 
-  left_join(wshd, by = 'StationCode')
+  left_join(wshd, by = 'StationCode') %>% 
+  mutate(Flow = as.numeric(Flow))
 
 save(lddat, file = here::here('data/lddat.RData'), compress = 'xz')
 
