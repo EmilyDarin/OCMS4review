@@ -91,8 +91,7 @@ data(tsthrs)
 data(tsopteff)
 
 # tops
-ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
-tops <- table(tsdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% c(., ext) %>% sort
+tops <- c('DDT', 'PCB', 'Se')
 ```
 
 ```{r reactives}
@@ -158,6 +157,7 @@ invtab <- reactive({
   if(tabtyp == 'Variance'){
     
     totab <- sums %>% 
+      filter(Parameter %in% tops) %>% 
       group_by(Parameter, StationCode) %>% 
       summarise(vr = round(var(Result, na.rm = T), 2)) %>% 
       spread(Parameter, vr, fill = NA)
@@ -169,6 +169,7 @@ invtab <- reactive({
   if(tabtyp == 'Median absolute deviation'){
     
     totab <- sums %>% 
+      filter(Parameter %in% tops) %>% 
       group_by(Parameter, StationCode) %>% 
       summarise(md = round(mad(Result, na.rm = T), 2)) %>% 
       spread(Parameter, md, fill = NA)

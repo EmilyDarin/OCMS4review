@@ -103,7 +103,8 @@ tsdat <- ts_dat %>%
     )
   ) %>% 
   group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
-  summarise(Result = sum(Result, na.rm = T))
+  summarise(Result = sum(Result, na.rm = T)) %>% 
+  ungroup
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
