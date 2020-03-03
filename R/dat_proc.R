@@ -76,6 +76,8 @@ tsstat <- ts_stat %>%
   select(StationCode, Watershed, Latitude, Longitude)
 
 # wrangle
+# take daily average across congeners
+# sum like congeners
 tsdat <- ts_dat %>% 
   mutate(
     Date = mdy_hm(Date, tz = "Pacific/Pitcairn"),
@@ -83,18 +85,25 @@ tsdat <- ts_dat %>%
     Parameter = case_when(
       Parameter %in% '% Solid' ~ 'Percent Solids', 
       Parameter %in% 'Percent Solid' ~ 'Percent Solids', 
+      Parameter %in% 'Se-T' ~ 'Se',
       T ~ Parameter
     )
   ) %>% 
   rename(StationCode = Station) %>% 
   left_join(tsstat, by = 'StationCode') %>%
-  select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude)
-  
-# remove stations with less than 15 obs
-tsdat <- tsdat %>% 
-  group_by(StationCode) %>% 
-  filter(n() > 15) %>% 
-  ungroup()
+  select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude) %>% 
+  group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
+  summarise(Result = mean(Result, na.rm = T)) %>% 
+  ungroup %>% 
+  mutate(
+    Parameter = case_when(
+      grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
+      grepl('^PCB', Parameter) ~ 'PCB', 
+      T ~ Parameter
+    )
+  ) %>% 
+  group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
+  summarise(Result = sum(Result, na.rm = T))
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
@@ -648,8 +657,7 @@ save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
-tops <- table(tsdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% c(., ext) %>% sort
+tops <- c('DDT', 'PCB', 'Se')
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
@@ -713,8 +721,7 @@ save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')
 
 data(tsdat)
 
-ext <- c('Se-T', 'Se', '2,4-DDD', '2,4-DDE', '2,4-DDT', '4,4-DDD', '4,4-DDE', '4,4-DDT')
-tops <- table(tsdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% c(., ext) %>% sort
+tops <- c('DDT', 'PCB', 'Se')
 
 # data to eval
 scns <- tsdat %>% 
