@@ -1038,7 +1038,7 @@ renderPlot({staplo()}, height = 500, width = 700)
 
 ## Hotspots {.tabset .tabset-pills}
 
-Hotspots show exceedances relative to regulatory thresholds for each constituent.  Median values are applied in the absence of a threshold, which applies only to TKN, TP, and TN.
+Hotspots show exceedances relative to thresholds for each constituent.  Median values are applied in the absence of a threshold, which applies only to TKN, TP, and TN.
 
 ### Individual constituents
 
@@ -1112,7 +1112,7 @@ column(12,
                   out <- paste0(txt, ', default selection is median (no threshold)')
                 
                 if(length(varthr) != 0)
-                  out <- paste0(txt, ', default selection is regulatory threshold')
+                  out <- paste0(txt, ', default selection is defined threshold')
                   
                 return(out)
                        
@@ -1247,7 +1247,7 @@ column(12,
                   out <- paste0(txt, ', default selection is median (no threshold)')
                 
                 if(length(varthr2) != 0)
-                  out <- paste0(txt, ', default selection is regulatory threshold')
+                  out <- paste0(txt, ', default selection is defined threshold')
                   
                 return(out)
                        
