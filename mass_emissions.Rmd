@@ -101,6 +101,9 @@ reverselog_trans <- function(base = exp(1)) {
               domain = c(1e-100, Inf))
 }
 
+# smpsel choices
+wx <- list('dry' = 'D', 'storm'= 'S')
+
 # constituents
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
             "Zn")
@@ -391,7 +394,7 @@ trndp2 <- reactive({
   varsel <- input$varsel
   
   win <- 12
-  toplo <- stapardat %>%
+  toplo <- try({stapardat %>%
     select(Date, Parameter, Result) %>%
     mutate(Date = floor_date(Date, unit = 'month')) %>%
     group_by(Date, Parameter) %>%
@@ -405,8 +408,13 @@ trndp2 <- reactive({
     ungroup %>%
     mutate(
       dev = Result - avg
-    )
-
+    )})
+  
+  # cut if no data
+  validate(
+    need(!inherits(toplo, 'try-error'), 'Insufficient data')
+  )
+  
   p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
     geom_line() +
     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
@@ -531,92 +539,6 @@ powplo1 <- reactive({
   
 })
 
-# second power plot
-powplo2 <- reactive({
-  
-  # input
-  powdat <- powdat()
-  stasel <- input$stasel
-  varsel <- input$varsel
-  
-  scns <- crossing(
-    chg = seq(0.3, 1, length = 2),
-    eff = seq(0.3, 1, length = 2)
-    ) %>%
-    group_by(chg, eff) %>%
-    mutate(
-      simdat = purrr::pmap(list(chg, eff), ~simvals(powdat, chg, eff, sims = 20)),
-      sigs = purrr::map(simdat, function(x){
-  
-        x <- x %>%
-          group_by(sims) %>%
-          nest %>%
-          mutate(
-            pval = purrr::map(data, function(x){
-  
-              mod <- lm(simrand ~ dectime, data = x) %>% summary %>% .$fstatistic
-              pf(mod[1], mod[2], mod[3], lower.tail = F)
-  
-            }),
-            sig = case_when(
-              pval < 0.05 ~ 'sig',
-              pval >= 0.05 ~ 'nonsig'
-            )
-          ) %>%
-          ungroup %>%
-          select(sims, sig)
-  
-        return(x)
-  
-      })
-    )
-  
-  simdat <- scns %>%
-    select(-sigs) %>%
-    unnest(simdat)
-  
-  sigs <- scns %>%
-    select(-simdat) %>%
-    unnest(sigs)
-  
-  toplo <- simdat %>%
-    left_join(sigs, by = c('chg', 'eff', 'sims')) %>%
-    group_by(chg, eff) %>%
-    nest %>%
-    mutate(
-      pow = purrr::map(data, powfun)
-    ) %>%
-    unnest(c(data, pow)) %>%
-    ungroup %>%
-    mutate(
-      chg = paste('change', chg),
-      eff = paste('effort', eff),
-      pow = paste('power', pow),
-      sig = case_when(
-        sig == 'nonsig' ~ 'Non-significant',
-        sig == 'sig' ~ 'Significant'
-      )
-    ) %>%
-    unite('grp', chg, eff, pow, sep = ', ')
-  
-  p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims, col = sig)) +
-    geom_point(size = 0.2) +
-    geom_line(alpha = 0.2) +
-    facet_wrap(~ grp, ncol = 2) +
-    thm2 +
-    scale_y_log10() +
-    scale_colour_manual('', values = c('black', 'tomato1')) +
-    labs(
-      title = 'Observed time series (mg/L)',
-      subtitle = paste0(stasel, ', twenty simulations per scenario'),
-      y = paste0('log-simulated ', varsel, ' (mg/L)'),
-      x = NULL
-    )
-  
-  return(p)
-  
-})
-
 # third power plot
 powplo3 <- reactive({
   
@@ -647,124 +569,6 @@ powplo3 <- reactive({
     )
   
   p
-  
-})
-
-# fourth power plot
-powplo4 <- reactive({
-  
-  # inputs
-  powdat <- powdat()
-  stasel <- input$stasel
-  varsel <- input$varsel
-  
-  scns <- crossing(
-    thr = seq(1, 10, length = 2),
-    eff = seq(0.1, 1, length = 2)) %>%
-    group_by(thr, eff) %>%
-    mutate(
-      simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
-    )
-  
-  toplo <- scns %>%
-    unnest(simdat) %>%
-    ungroup %>%
-    mutate(
-      thr = paste('exceedance', thr),
-      eff = paste('effort', eff)
-    ) %>%
-    unite('grp', thr, eff, sep = ', ', remove = F) %>%
-    mutate(
-      thr = gsub('^exceedance\\s', '', thr) %>% as.numeric,
-      val = case_when(
-        exp(simrand) > thr ~ 'Value above',
-        exp(simrand) <= thr ~'Value below'
-      )
-    )
-  
-  p <- ggplot(toplo, aes(x = Date, y = exp(simrand), group = sims)) +
-    geom_line(alpha = 0.2) +
-    geom_point(size = 0.5, aes(shape = val, col = val)) +
-    geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-    facet_wrap(~ grp, nrow = 2) +
-    thm2 +
-    scale_y_log10() +
-    scale_colour_manual(NULL, values = c('tomato1', 'black')) +
-    scale_shape_manual(NULL, values = c(24, 25)) +
-    labs(
-      title = 'Observed time series (mg/L)',
-      subtitle = paste0(stasel, ', twenty simulations per scenario'),
-      y = paste0('log-simulated ', varsel, ' (mg/L)'),
-      x = NULL
-    )
-  
-  p
-  
-})
-
-# fifth power plot
-powplo5 <- reactive({
-  
-  # inputs
-  powdat <- powdat()
-  stasel <- input$stasel
-  varsel <- input$varsel
-  
-  scns <- crossing(
-    thr = seq(1, 10, length = 2),
-    eff = seq(0.1, 1, length = 2)) %>%
-    group_by(thr, eff) %>%
-    mutate(
-      simdat = purrr::map(eff, ~thrvals(powdat, eff, sims = 20))
-    )
-  
-  toplo <- scns %>%
-    mutate(
-      yrspow = purrr::pmap(list(thr, simdat), function(thr, simdat) {
-  
-        out <- simdat %>%
-          mutate(simrand = exp(simrand)) %>%
-          group_by(Year) %>%
-          summarise(
-            aveval = mean(simrand),
-            minval = t.test(simrand)$conf.int[1],
-            maxval = t.test(simrand)$conf.int[2]
-          ) %>%
-          mutate(sig = case_when(
-            maxval > thr ~ 'detected',
-            maxval < thr ~ 'not detected'
-            )
-          )
-  
-        return(out)
-  
-      })
-    ) %>%
-    unnest(yrspow) %>%
-    ungroup %>%
-    mutate(
-      thr = paste('exceedance', thr),
-      eff = paste('effort', eff)
-    ) %>%
-    unite('grp', thr, eff, sep = ', ', remove = F) %>%
-    mutate(thr = gsub('^exceedance\\s', '', thr) %>%  as.numeric)
-
-  p <- ggplot(toplo, aes(x = factor(Year), y = aveval)) +
-    geom_bar(stat = 'identity', aes(fill = sig)) +
-    geom_errorbar(aes(ymin = minval, ymax = maxval, color = sig), width = 0) +
-    geom_hline(aes(yintercept = thr), linetype = 'dashed') +
-    scale_colour_manual(NULL, values = c('tomato1', 'black')) +
-    scale_fill_manual(NULL, values = c('tomato1', 'black')) +
-    facet_wrap(~ grp, nrow = 2) +
-    thm2 +
-    labs(
-      title = 'Ability to detect exceedance by year',
-      subtitle = paste0(stasel, ', twenty simulations per scenario'),
-      y = paste0(varsel, ' concentration (mg/L)'),
-      x = NULL
-    )
-  
-  return(p)
   
 })
 
@@ -990,51 +794,6 @@ discondat <- reactive({
   
 })
 
-# select unique stations
-unisel <- reactive({
-  
-  # input
-  disdat <- disdat()
-  unithr <- input$unithr
-
-  req(unithr)
-   
-  totab <- disdat %>% 
-    filter(!is.na(dist)) %>% 
-    group_by(StationCode) %>% 
-    summarise(dist = mean(dist, na.rm = T)) %>% 
-    filter(dist > unithr) %>% 
-    arrange(dist) %>% 
-    rename(`Avg. dissimilarity` = dist)
-
-  cap <- paste0('Selected "unique" stations using average dissimilarity threshold of ', unithr)
-  
-  HTML(knitr::kable(totab, format = 'html', caption = cap, digits = 2) %>% 
-    kable_styling(full_width = T, font_size = 14))  
-    
-})
-
-# select unique stations, average across constituents
-unisel2 <- reactive({
-  
-  # input
-  discondat <- discondat()
-  unithr2 <- input$unithr2
-
-  req(unithr2)
-   
-  totab <- discondat %>% 
-    filter(dist > unithr2) %>% 
-    arrange(dist) %>% 
-    rename(`Avg. dissimilarity` = dist)
-
-  cap <- paste0('Selected "unique" stations using average dissimilarity threshold of ', unithr2, ', values are averages across constituents.')
-  
-  HTML(knitr::kable(totab, format = 'html', caption = cap, digits = 2) %>% 
-    kable_styling(full_width = T, font_size = 14))  
-    
-})
-
 # multivariate comparison plots
 mulplo <- reactive({
   
@@ -1124,7 +883,7 @@ mulplo <- reactive({
       
 })
 
-# treshold value for consituent
+# treshold value for constituent
 varthr <- reactive({
   
   # input
@@ -1147,7 +906,7 @@ optdat <- reactive({
   powsel <- input$powsel
   smpsel <- input$smpsel
   shdsel <- input$shdsel
-  
+
   if(shdsel == 'all')
     shdsel <- unique(pows$Watershed)
   
@@ -1184,7 +943,7 @@ optdat <- reactive({
     group_by(sta) %>% 
     nest %>% 
     mutate(
-      opt = purrr::map(data, getopt, pow = powsel)
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel))
     ) %>% 
     dplyr::select(-data) %>% 
     unnest(opt) %>% 
@@ -1210,21 +969,6 @@ optdat <- reactive({
   
 })
 
-# optimal effort as median of all, weighted by site distance from threshold
-optwgtmed <- reactive({
-  
-  # inputs
-  optdat <- optdat()
-  
-  opts <- optdat$opts
-
-  # weighted median
-  out <- weightedMedian(opts$eff, w = 1 / opts$reldif)
-  
-  return(out)
-  
-})
-
 # text for optimal plot 1
 opttxt <- reactive({
   
@@ -1232,7 +976,6 @@ opttxt <- reactive({
   powsel <- input$powsel
   smpsel <- input$smpsel
   optdat <- optdat()
-  optwgtmed <- optwgtmed()
   
   smpsel <- case_when(
     smpsel == 'D' ~ 'dry', 
@@ -1241,8 +984,7 @@ opttxt <- reactive({
   
   opts <- optdat$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  wgtmedv <- round(optwgtmed, 2)
-  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel, " power: ", medv , ' relative effort (weighted by distance from threshold: ', wgtmedv, ')')
+  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel, " power: ", medv)
   
   return(out)
   
@@ -1250,11 +992,10 @@ opttxt <- reactive({
 
 # optimal plot, by constituent
 optplo <- reactive({
-  
+
   # inputs
   optdat <- optdat()
   varthr <- varthr()
-  optwgtmed <- optwgtmed()
   powsel <- input$powsel
 
   # setup text labels in groups for plotly
@@ -1272,7 +1013,6 @@ optplo <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
-    geom_hline(yintercept = optwgtmed, col = 'red') +
     scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
@@ -1286,7 +1026,7 @@ optplo <- reactive({
 
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = powsel, size = 0.5) + 
+    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
     geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_size_continuous(guide = F, trans = 'reverse', limits = c(NA, 0)) + 
@@ -1352,7 +1092,7 @@ optdat2 <- reactive({
     group_by(sta, par) %>% 
     nest %>% 
     mutate(
-      opt = purrr::map(data, getopt, pow = powsel2)
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel2))
     ) %>% 
     dplyr::select(-data) %>% 
     unnest(opt) %>% 
@@ -1386,44 +1126,6 @@ optdat2 <- reactive({
   
 })
 
-# optimal effort as median of all, weighted by site distance from threshold
-optwgtmed2 <- reactive({
-  
-  # inputs
-  optdat2 <- optdat2()
-  
-  opts <- optdat2$opts %>% 
-    filter(!is.na(Threshold))
-
-  # weighted median
-  out <- weightedMedian(opts$eff, w = 1 / opts$reldif)
-  
-  return(out)
-  
-})
-
-# optimal effort as median separat for each parameter, weighted by site distance from threshold
-optwgtmedpar2 <- reactive({
-  
-  # inputs
-  optdat2 <- optdat2()
-  
-  opts <- optdat2$opts
-
-  # weighted median
-  out <- opts %>% 
-    group_by(par) %>% 
-    summarise(
-      wgtmed = case_when(
-        anyNA(reldif) ~ median(eff, na.rm = T), 
-        T ~ weightedMedian(eff, w = 1 / reldif)
-      )
-    )
-
-  return(out)
-  
-})
-
 # text for optimal plot 2
 opttxt2 <- reactive({
   
@@ -1431,7 +1133,6 @@ opttxt2 <- reactive({
   powsel2 <- input$powsel2
   smpsel <- input$smpsel
   optdat2 <- optdat2()
-  optwgtmed2 <- optwgtmed2()
   
   smpsel <- case_when(
     smpsel == 'D' ~ 'dry', 
@@ -1440,8 +1141,7 @@ opttxt2 <- reactive({
   
   opts <- optdat2$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  wgtmedv <- round(optwgtmed2, 2)
-  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel2, " power: ", medv , ' relative effort (weighted by distance from threshold: ', wgtmedv, ')')
+  out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel2, " power: ", medv)
   
   return(out)
   
@@ -1453,8 +1153,6 @@ optplo2 <- reactive({
   # inputs
   optdat2 <- optdat2()
   powsel2 <- input$powsel2
-  optwgtmed2 <- optwgtmed2()
-  optwgtmedpar2 <- optwgtmedpar2()
   
   toplo <- optdat2$toplo
   opts <- optdat2$opts
@@ -1475,7 +1173,6 @@ optplo2 <- reactive({
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
-    geom_hline(yintercept = optwgtmed2, color = 'red') +
     scale_y_continuous(limits = c(0.1, 2)) + 
     coord_flip() + 
     theme_void() + 
@@ -1486,7 +1183,7 @@ optplo2 <- reactive({
   
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = powsel2, size = 0.5) + 
+    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
     geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_x_continuous(limits = c(0.1, 2)) + 
@@ -1505,7 +1202,6 @@ optplo2 <- reactive({
   
   pout3 <- plot_ly() %>% 
     add_trace(data = selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
-    add_trace(data = optwgtmedpar2, y = ~par, x = ~wgtmed, type= 'box', color = I('red'), text = NULL) %>% 
   layout(
     yaxis = list(title = ''), 
     xaxis = list(title= 'Optimal effort by site'), 
@@ -1523,7 +1219,7 @@ opttab2 <- reactive({
   optdat2 <- optdat2()
 
   totab <- optdat2$opts %>% 
-    select(par, sta, eff, medval, Threshold, thrdif, reldif)
+    select(par, sta, eff, medval, Threshold, thrdif)
   
   out <- reactable(totab, 
                    groupBy = 'par', 
@@ -1532,8 +1228,7 @@ opttab2 <- reactive({
                      sta = colDef(name = 'Station'),
                      eff = colDef(name = 'Optimal effort'),
                      medval = colDef(name = 'Median value at station'),
-                     thrdif = colDef(name = 'Diff. of median from threshold'),
-                     reldif = colDef(name = 'Relative difference for weighting')
+                     thrdif = colDef(name = 'Diff. of median from threshold')
                    ),
                    defaultColDef = colDef(
                      footerStyle = list(fontWeight = "bold"),
@@ -1551,6 +1246,8 @@ alltrnd <- reactive({
   
   # input
   varsel3 <- input$varsel3
+  
+  req(varsel3)
   
   out <- medat %>%
     filter(Parameter %in% varsel3) %>%
@@ -1669,11 +1366,24 @@ alltrndmap <- reactive({
 })
 ```
 
+This website presents an evaluation of the Orange County mass emissions monitoring dataset. The content is separated into four main tabs.  
+
+* __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
+* __Trends and power analyses__: Changes over time by select constituents and locations, including power analyses to help identify optimal sampling effort
+* __Station differences__: A comparison of time series between stations to identify similarities among trends
+* __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together
+
+Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. Most analyses are also grouped by constituent type as nutrients, metals, or organics.  The following shows which constituents are included in each type. 
+
+* __Nutrients__: `r paste(nutrs, collapse = ', ')`
+* __Metals__: `r paste(metals, collapse = ', ')`
+* __Organics__: `r paste(organs, collapse = ', ')`
+
 ## Inventory {.tabset .tabset-pills}
 
 ### Maps
 
-Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
+These three maps show the monitoring stations where mass emissions data are collected.  Each map shows different information, the first showing the watershed for each station, the second showing the number of parameters collected at each station (for the entire period of record), and the third showing the number of years for available data.  Each map is linked so that the mouse pointer is synced between the three.
 
 ```{r}
 tomap <- medat %>% 
@@ -1707,6 +1417,8 @@ leafsync::sync(m1a, m2a, m3a, ncol = 1)
 
 ### Tabular
 
+These tables provide a more detailed summary of the data available at each station.  The drop-down menus can be used to select a constituent type (nutrients, metals, or organics) and the type of data shown in each table.  The data type can be selected as the total number of observations, the variance across observations, and the median absolute deviance (MAD) of observations for each station/constituent combination.  The MAD estimates provide a more robust estimate of variance when outliers are present or the data are highly skewed.  
+
 ```{r}
 column(12, 
        column(4,
@@ -1723,6 +1435,8 @@ renderUI(invtab())
 ```
 
 ## Trends and power analyses {.tabset .tabset-pills}
+
+This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type filters which constituents can be selected.  The watershed filters the stations that can be selected.  Finally, the sampling weather selection filters dry weather or wet weather sampling for the selected station/constituent.  Each sub-tab contains additional information about the results.
 
 ```{r}
 column(12, 
@@ -1773,14 +1487,14 @@ column(12,
 
 column(12, 
   column(6, 
-       selectInput('smpsel', 'Select sampling weather:', choices = list('dry' = 'D', 'storm'= 'S'))
+       selectInput('smpsel', 'Select sampling weather:', choices = wx)
   )
 )
 ```
 
 ### Observed
 
-Observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`.
+These plots show the observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)` during `r renderText(names(wx[which(unlist(wx) == input$smpsel)]))` sampling. The top plot is the raw data, the middle plot shows boxplots of the raw data grouped by year, and the bottom plot shows boxplots of the raw data grouped by month.  Points in red in the top plot are those that were at or below the detection limit for the constituent. 
 
 ```{r}
 renderPlot({obsp1()}, height = 350, width = 700)
@@ -1790,23 +1504,29 @@ renderPlot({obsp3()}, height = 300, width = 700)
 
 ### Trends
 
+This sub-tab shows the annual trends for `r renderText(input$varsel)` at `r renderText(input$stasel)` during `r renderText(names(wx[which(unlist(wx) == input$smpsel)]))` sampling.  The top plot shows trends for the time series after removing the overall mean. This is an effective approach for trend analysis by evaluating deviation of the annual averages relative to the grand mean. Bars in green show annual averages greater than the grand mean and bars in red show annual averages less than the grand mean.  The bars are centered on the zero line, which is a reference for the grand mean. The y-axis reports the grand mean of the constituent in parentheses. The trend is shown as the dotted line for a regression of the annual averages over time.  
+
 ```{r}
 renderPlot({trndp1()}, height = 350, width = 900)
 ```
 
-This table shows the regression results from the above plot.
+This table shows the regression results from the above plot.  Parameter estimates (Year and Intercept) are shown with their standard errors in parentheses.  
 
 ```{r, results='asis'}
 renderUI({trndtab1()})
 ```
 
-The plots below show the observed time series (left) with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right).
+<br>
+
+The plots below show the observed time series with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right). The right plot is an alternative visualization for deviations around the long-term trend.
 
 ```{r}
 renderPlot({trndp2()}, height = 350, width = 900)
 ```
 
-Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+<br>
+
+Finally, Kendall tests provide an alternative indication of trend by evaluating magnitude, direction, and significance of a change over time. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
 ```{r, results = 'asis'}
 renderUI({trndtab2()})
@@ -1814,52 +1534,33 @@ renderUI({trndtab2()})
 
 ### Power analyses
 
-A power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis involved repeated simulations of time series with similar characteristics as the data observed at station SDMF05.  Generally, power is described as the likelihood of observing an actual trend given the magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits every ~14 days across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.
+This sub-tab shows the results for two different power analyses. Power is described as the likelihood of identifying a trend as statistically significant given the actual magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.
 
-The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.  The power analyses are specific to the characteristics of the time series at this station.
+The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.  
 
 ```{r}
 renderPlot({powplo1()}, height = 350, width = 900)
 ```
 
-This plot shows 20 simulated time series of `r renderText(input$varsel)` trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 30\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the top right, a trend of 30\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities.
-
-```{r}
-renderPlot({powplo2()}, height = 550, width = 900)
-```
-
-This plot shows a summary of power for several efforts and trends. Power is based on 1000 simulations for each scenario (differing from the example above).
+Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort. 
 
 ```{r}
 renderPlot({powplo3()}, height =650, width = 900)
 ```
 
-A second power analysis was conducted to identify the ability to observe an exceedance for a `r renderText(input$varsel)` concentration for a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  The top left shows the power of observing an exceedance of 1 mg/L at 10\% sample effort.  The top right shows the power of observing an exceedance of 1 mg/L at 100\% sample effort. The bottom left shows the power of observing an exceedance of 10 mg/L at 10\% sample effort. The bottom right shows the power of observing an exceedance of 10 mg/L at 100\% sample effort.  Observations above the threshold are shown in red.
-
-```{r}
-renderPlot({powplo4()}, height = 550, width = 900)
-```
-
-This plot shows the uncertainty associated with the average esimated concentration within each year.  The estimates served as a proxy for power given the sample effort and exceedance threshold.
-
-```{r}
-renderPlot({powplo5()}, height = 550, width = 900)
-```
-
-Finally, power to detect observations above a given threshold is summarized below across different levels of effort and thresholds. Power is based on 1000 simulations for each scenario (differing from the example above).
+A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.   
 
 ```{r}
 renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
-
 ### Optimal effort by constituent
 
-Optimal sample effort was determined for all stations and a selected constituent (`r renderText({input$varsel})`) using power results for the ability to detect a specified trend (first power analysis).  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).   
+This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).   
 
-The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the trend (y) for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations. 
+The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations. 
 
-An alternative "optimal" level was also defined as the weighted median of the optimal effort for each station.  This value is shown by the __red__ vertical line.  The weights are defined as the distance of the median observation for a constituent at a station relative to a threshold, with higher weights assigned to stations with median values closer to the threshold.  Higher weights mean the optimal effort at that station is given higher importance for determining the median value.  
+Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.
 
 ```{r}
 column(12, 
@@ -1882,9 +1583,7 @@ Note: Changing the station selection above does not affect the estimates since t
 
 ### Optimal effort across constituents
 
-This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle boxplot shows the distrubution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort. 
-
-The optimal sample effort weighted by site distances from a threshold is also shown with the vertical __red__ line, shown overall across all constituents and separately for individual constituents. The weights for the weighted median shown in the red line are defined as the distance of the median observation for a constituent at a station relative to a threshold, with higher weights assigned to stations with median values closer to the threshold.  Higher weights mean the optimal effort at that station is given higher importance for determining the median value.  
+This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold.  
 
 ```{r}
 column(12, 
@@ -1916,6 +1615,8 @@ fillCol(
 ```
 
 ## Station differences {.tabset .tabset-pills}
+
+This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar water quality characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.  
 
 ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
 # rename some nutrient parameters
@@ -1972,88 +1673,30 @@ column(12,
 )
 ```
 
-### By constituent {.tabset .tabset-pills}
-
-This plot shows a PCA comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  
+This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).  
 
 ```{r}
 renderPlot({mulplo()}, height = 550, width = 900)
 ```
 
-```{r}
-column(12, 
-       column(6, 
-              renderUI({
-                
-                # input
-                disdat <- disdat()
-                
-                rng <- disdat %>% 
-                  filter(!is.na(dist)) %>% 
-                  group_by(StationCode) %>% 
-                  summarise(dist = mean(dist, na.rm = T)) %>% 
-                  pull(dist)
+Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month. 
 
-                rng <- round(range(rng, na.rm = T), 1)
-                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 1)
-              
-                sliderInput('unithr', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)  
-              })
-      )
-)
-```
-
-```{r}
-renderUI(unisel())
-```
-
-Observed time series for selected stations and constituent.
-
-#### Time series
+### Time series
 
 ```{r}
 renderPlot({obsp4()}, height = 450, width = 700)
 ```
 
-#### By year
+### By year
 
 ```{r}
 renderPlot({obsp5()}, height = 450, width = 700)
 ```
 
-#### By month
+### By month
 
 ```{r}
 renderPlot({obsp6()}, height = 450, width = 700)
-```
-
-### Across constituents 
-
-```{r}
-column(12, 
-       column(6, 
-              renderUI({
-                
-                # input
-                discondat <- discondat()
-                
-                rng <- discondat %>% 
-                  pull(dist) 
-
-                rng <- round(range(rng, na.rm = T), 2)
-                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 2)
-              
-                sliderInput('unithr2', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)  
-                
-              })
-      )
-)
-```
-
-This selection is the same as in the previous tab, except the average represents the grand mean of dissimilarities across all constituents and stations for the selected constituent type. 
-
-```{r}
-renderUI(unisel2())
 ```
 
 ## Overall trends
@@ -2083,9 +1726,9 @@ column(12,
 
 ```
 
-Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between.  The table shows the detailed results from the map.
+The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map.
 
 ```{r}
 renderLeaflet(alltrndmap())
