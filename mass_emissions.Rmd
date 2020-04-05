@@ -5,7 +5,7 @@ output:
 runtime: shiny
 ---
 
-# Evaluation of OC MS4 monitoring program, mass emissions {.tabset}
+# OC MS4 monitoring program, mass emissions {.tabset}
 
 ```{r setup, message = F, warning = F, results = 'hide', echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))

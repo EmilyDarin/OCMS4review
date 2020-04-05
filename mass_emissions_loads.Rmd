@@ -5,7 +5,7 @@ output:
 runtime: shiny
 ---
 
-# Evaluation of OC MS4 monitoring program, mass emissions loading data{.tabset}
+# OC MS4 monitoring program, mass emissions loading {.tabset}
 
 ```{r setup, message = F, warning = F, results = 'hide', echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
@@ -592,51 +592,6 @@ discondat <- reactive({
   
 })
 
-# select unique stations
-unisel <- reactive({
-  
-  # input
-  disdat <- disdat()
-  unithr <- input$unithr
-
-  req(unithr)
-   
-  totab <- disdat %>% 
-    filter(!is.na(dist)) %>% 
-    group_by(StationCode) %>% 
-    summarise(dist = mean(dist, na.rm = T)) %>% 
-    filter(dist > unithr) %>% 
-    arrange(dist) %>% 
-    rename(`Avg. dissimilarity` = dist)
-
-  cap <- paste0('Selected "unique" stations using average dissimilarity threshold of ', unithr)
-  
-  HTML(knitr::kable(totab, format = 'html', caption = cap, digits = 2) %>% 
-    kable_styling(full_width = T, font_size = 14))  
-    
-})
-
-# select unique stations, average across constituents
-unisel2 <- reactive({
-  
-  # input
-  discondat <- discondat()
-  unithr2 <- input$unithr2
-
-  req(unithr2)
-   
-  totab <- discondat %>% 
-    filter(dist > unithr2) %>% 
-    arrange(dist) %>% 
-    rename(`Avg. dissimilarity` = dist)
-
-  cap <- paste0('Selected "unique" stations using average dissimilarity threshold of ', unithr2, ', values are averages across constituents.')
-  
-  HTML(knitr::kable(totab, format = 'html', caption = cap, digits = 2) %>% 
-    kable_styling(full_width = T, font_size = 14))  
-    
-})
-
 # multivariate comparison plots
 mulplo <- reactive({
   
@@ -727,6 +682,8 @@ alltrnd <- reactive({
   
   # input
   varsel3 <- input$varsel3
+  
+  req(varsel3)
   
   out <- lddat %>%
     filter(Parameter %in% varsel3) %>%
@@ -846,11 +803,23 @@ alltrndmap <- reactive({
 
 ```
 
+This website presents an evaluation of the Orange County mass emissions loading monitoring dataset. The content is separated into four main tabs.  
+
+* __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
+* __Trends and power analyses__: Changes over time by select constituents and locations, including power analyses to help identify optimal sampling effort
+* __Station differences__: A comparison of time series between stations to identify similarities among trends
+* __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together
+
+Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. Most analyses are also grouped by constituent type as nutrients or metals.  The following shows which constituents are included in each type. 
+
+* __Nutrients__: `r paste(nutrs, collapse = ', ')`
+* __Metals__: `r paste(metals, collapse = ', ')`
+
 ## Inventory {.tabset .tabset-pills}
 
 ### Maps
 
-Watersheds monitored and number of years monitored at each station. 
+These maps show the monitoring stations where mass emissions loading data are collected.  The top map shows the watershed for each station and the bottom map shows the number of years for available data.  The maps are linked so that the mouse pointer is synced between the two.
 
 ```{r}
 tomap <- lddat %>% 
@@ -875,6 +844,8 @@ leafsync::sync(m1a, m2a, ncol = 1)
 
 ### Tabular
 
+These tables provide a more detailed summary of the data available at each station.  The drop-down menus can be used to select a constituent type (nutrients or organics) and the type of data shown in each table.  The data type can be selected as the total number of observations, the variance across observations, and the median absolute deviance (MAD) of observations for each station/constituent combination.  The MAD estimates provide a more robust estimate of variance when outliers are present or the data are highly skewed.  
+
 ```{r}
 column(12, 
        column(4,
@@ -891,6 +862,8 @@ renderUI(invtab())
 ```
 
 ## Trends {.tabset .tabset-pills}
+
+This tab shows trend results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type and station menus filter which constituents can be selected from the constituent menu. Each sub-tab contains additional information about the results.
 
 ```{r}
 column(12, 
@@ -934,7 +907,7 @@ column(12,
 
 ### Observed
 
-Observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`.
+These plots show the observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`. The top plot is the raw data with load estimates in the first row and flow volume in the second row. This plot indicates trends in load over time and if load was correlated with flow volume. The middle plot shows boxplots of the raw data grouped by year, and the bottom plot shows boxplots of the raw data grouped by month.
 
 ```{r}
 renderPlot({obsp1()}, height = 500, width = 700)
@@ -944,23 +917,29 @@ renderPlot({obsp3()}, height = 300, width = 700)
 
 ### Trends
 
+This sub-tab shows the annual trends for `r renderText(input$varsel)` at `r renderText(input$stasel)`.  The top plot shows trends for the time series after removing the overall mean. This is an effective approach for trend analysis by evaluating deviation of the annual averages relative to the grand mean. Bars in green show annual averages greater than the grand mean and bars in red show annual averages less than the grand mean.  The bars are centered on the zero line, which is a reference for the grand mean. The y-axis reports the grand mean of the constituent in parentheses. The trend is shown as the dotted line for a regression of the annual averages over time.  
+
 ```{r}
 renderPlot({trndp1()}, height = 350, width = 900)
 ```
 
-This table shows the regression results from the above plot.
+This table shows the regression results from the above plot.  Parameter estimates (Year and Intercept) are shown with their standard errors in parentheses.  
 
 ```{r, results='asis'}
 renderUI({trndtab1()})
 ```
 
-Kendall tests also provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+<br>
+
+Finally, Kendall tests provide an alternative indication of trend by evaluating magnitude, direction, and significance of a change over time. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
 ```{r, results = 'asis'}
 renderUI({trndtab2()})
 ```
 
 ## Station differences {.tabset .tabset-pills}
+
+This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar loading characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.  
 
 ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
 # rename some nutrient parameters
@@ -1013,50 +992,21 @@ column(12,
 )
 ```
 
-### By constituent {.tabset .tabset-pills}
-
-This plot shows a PCA comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.
+This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).  
 
 ```{r}
 renderPlot({mulplo()}, height = 550, width = 900)
 ```
 
-```{r}
-column(12,
-       column(6,
-              renderUI({
+Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month. 
 
-                # input
-                disdat <- disdat()
-
-                rng <- disdat %>%
-                  filter(!is.na(dist)) %>%
-                  group_by(StationCode) %>%
-                  summarise(dist = mean(dist, na.rm = T)) %>%
-                  pull(dist)
-
-                rng <- round(range(rng, na.rm = T), 1)
-                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 1)
-
-                sliderInput('unithr', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)
-              })
-      )
-)
-```
-
-```{r}
-renderUI(unisel())
-```
-
-Observed time series for selected stations and constituent.
-
-#### Time series
+### Time series
 
 ```{r}
 renderPlot({obsp4()}, height = 450, width = 700)
 ```
 
-#### By year
+### By year
 
 ```{r}
 renderPlot({obsp5()}, height = 450, width = 700)
@@ -1066,35 +1016,6 @@ renderPlot({obsp5()}, height = 450, width = 700)
 
 ```{r}
 renderPlot({obsp6()}, height = 450, width = 700)
-```
-
-### Across constituents
-
-```{r}
-column(12,
-       column(6,
-              renderUI({
-
-                # input
-                discondat <- discondat()
-
-                rng <- discondat %>%
-                  pull(dist)
-
-                rng <- round(range(rng, na.rm = T), 2)
-                med <- round(rng[1] + ((rng[2] - rng[1]) / 2), 2)
-
-                sliderInput('unithr2', 'Select unique threshold:', min = rng[1], max = rng[2], value = med)
-
-              })
-      )
-)
-```
-
-This selection is the same as in the previous tab, except the average represents the grand mean of dissimilarities across all constituents and stations for the selected constituent type.
-
-```{r}
-renderUI(unisel2())
 ```
 
 ## Overall trends
@@ -1119,9 +1040,9 @@ column(12,
 
 ```
 
-Kendall tests provide an indication of a trend by evaluating magnitude, direction, and significance of a change in density between the selected years. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change between.  The table shows the detailed results from the map.
+The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map.
 
 ```{r}
 renderLeaflet(alltrndmap())
