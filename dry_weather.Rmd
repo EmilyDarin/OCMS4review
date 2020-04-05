@@ -5,7 +5,7 @@ output:
 runtime: shiny
 ---
   
-# Evaluation of OC MS4 monitoring program, dry weather monitoring {.tabset}
+# OC MS4 monitoring program, dry weather monitoring {.tabset}
   
 ```{r setup, message = F, warning = F, results = 'hide', echo = F}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
@@ -153,7 +153,9 @@ statab <- reactive({
     
     sums <- dat %>% 
       mutate(Year = as.character(year(Date))) %>% 
-      count(Year, StationCode) %>% 
+      group_by(Year, StationCode) %>% 
+      summarise(n = n()) %>% 
+      ungroup() %>%  
       bind_rows(group_by(., Year) %>%
                   summarise(n = sum(n)) %>%
                   mutate(StationCode = 'Total')) %>%
@@ -168,7 +170,9 @@ statab <- reactive({
     
     sums <- dat %>% 
       mutate(Month = month(Date, label = TRUE)) %>% 
-      count(Month, StationCode) %>% 
+      group_by(Month, StationCode) %>% 
+      summarise(n = n()) %>% 
+      ungroup() %>% 
       bind_rows(group_by(., Month) %>%
                   summarise(n = sum(n)) %>%
                   mutate(StationCode = 'Total')) %>%
@@ -212,11 +216,13 @@ staplo <- reactive({
     
     sums <- dat %>% 
       mutate(Year = as.character(year(Date))) %>% 
-      count(Year, StationCode, Parameter) %>% 
-      mutate(Year = factor(Year, levels = c(2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019))) %>% 
-      complete(Year, StationCode, Parameter, fill = list(n = 0)) %>% 
-      filter(Parameter %in% varsel2) %>% 
-      rename(x = Year)
+        group_by(Year, StationCode, Parameter) %>% 
+        summarise(n = n()) %>% 
+        ungroup() %>% 
+        mutate(Year = factor(Year, levels = c(2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019))) %>% 
+        complete(Year, StationCode, Parameter, fill = list(n = 0)) %>% 
+        filter(Parameter %in% varsel2) %>% 
+        rename(x = Year)
 
   }
 
@@ -226,7 +232,9 @@ staplo <- reactive({
     
     sums <- dat %>% 
       mutate(Month = month(Date, label = TRUE)) %>% 
-      count(Month, StationCode, Parameter) %>% 
+      group_by(Month, StationCode, Parameter) %>% 
+      summarise(n = n()) %>% 
+      ungroup() %>% 
       mutate(Month = factor(Month, levels = c("May", "Jun", "Jul", "Aug", "Sep"))) %>% 
       tidyr::complete(Month, StationCode, Parameter, fill = list(n = 0)) %>% 
       filter(Parameter %in% varsel2) %>% 
@@ -820,11 +828,22 @@ obsp3 <- reactive({
 })
 ```
 
+This website presents an evaluation of the Orange County dry weather (ID/IC) dataset. The content is separated into three main tabs.  
+
+* __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
+* __Hotspots__: Assessment of hotspot sites based on threshold exceedances over time
+* __Analyses by waterbody__: A simple analysis of threshold exceedances for select sites shown for complete time series
+
+Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content.  Selected constituents are also available for each analysis.  Because the constituent list was large for some stations, a pre-selected list was created that included the top ten measured constituents for the entire data set and those those with defined thresholds.   Nutrients were also added to the list of constituents available for analysis.  The following shows which constituents were included in the website. 
+
+* __Top ten, including those with thresholds__: `r paste(tops, collapse = ', ')`
+* __Nutrients__: `r paste(nutrs, collapse = ', ')`
+
 ## Inventory {.tabset .tabset-pills}
 
 ### Maps
 
-Watersheds monitored, number of parameters measured, and number of years monitored at each station. 
+These three maps show the stations for the dry weather monitoring program.  Each map shows different information, the first showing the watershed for each station, the second showing the number of parameters collected at each station (for the entire period of record), and the third showing the number of years for available data.  Each map is linked so that the mouse pointer is synced between the three.
 
 ```{r}
 tomap <- dwdat %>% 
@@ -858,10 +877,14 @@ leafsync::sync(m1a, m2a, m3a, ncol = 1)
 
 ### Tables, by watershed
 
+These tables summarize the number of observations for each constituent by each major watershed.  The first three tables show the summaries for the top parameters and the bottom three show the summaries for nutrients.  Tables are also shown for total count, number of observations within each year, and number of observations within each month for the top parameters and nutrients. 
+
 ```{r toptab}
 sums <- dwdat %>% 
   filter(Parameter %in% tops) %>% 
-  count(Parameter, Watershed) %>% 
+  group_by(Parameter, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Parameter) %>%
               summarise(n=sum(n)) %>%
               mutate(Watershed='Total')) %>%
@@ -878,7 +901,7 @@ coltot <- sums %>%
 
 totab <- bind_rows(alltot, coltot)
 
-HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters") %>% 
+HTML(knitr::kable(totab, format = 'html', caption = "Top parameters") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
@@ -904,15 +927,17 @@ coltot <- sums %>%
 
 totab <- bind_rows(alltot, coltot)
 
-HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by year") %>% 
+HTML(knitr::kable(totab, format = 'html', caption = "Top parameters by year") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
 ```{r toptabmo}
 sums <- dwdat %>% 
   mutate(Month = month(Date, label = TRUE)) %>% 
-  filter(Parameter %in% tops) %>% 
-  count(Month, Watershed) %>% 
+  filter(Parameter %in% tops) %>%
+  group_by(Month, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Month) %>%
               summarise(n = sum(n)) %>%
               mutate(Watershed = 'Total')) %>%
@@ -929,14 +954,16 @@ coltot <- sums %>%
 
 totab <- bind_rows(alltot, coltot)
 
-HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters by month") %>% 
+HTML(knitr::kable(totab, format = 'html', caption = "Top parameters by month") %>% 
        kable_styling(full_width = T, font_size = 14))
 ```
 
 ```{r nuttab}
 sums <- dwdat %>% 
   filter(Parameter %in% nutrs) %>% 
-  count(Parameter, Watershed) %>% 
+  group_by(Parameter, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Parameter) %>%
               summarise(n=sum(n)) %>%
               mutate(Watershed='Total')) %>%
@@ -961,7 +988,9 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients") %>%
 sums <- dwdat %>% 
   mutate(Year = as.character(year(Date))) %>% 
   filter(Parameter %in% nutrs) %>% 
-  count(Year, Watershed) %>% 
+  group_by(Year, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Year) %>%
               summarise(n = sum(n)) %>%
               mutate(Watershed = 'Total')) %>%
@@ -985,7 +1014,9 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by year") %>%
 sums <- dwdat %>% 
   mutate(Month = month(Date, label = T)) %>% 
   filter(Parameter %in% nutrs) %>% 
-  count(Month, Watershed) %>% 
+  group_by(Month, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Month) %>%
               summarise(n = sum(n)) %>%
               mutate(Watershed = 'Total')) %>%
@@ -1006,8 +1037,9 @@ HTML(knitr::kable(totab, format = 'html', caption = "Nutrients by month") %>%
        kable_styling(full_width = T, font_size = 14))
 ```
 
-
 ### By Site
+
+This table summarizes the number of observations for `r renderText(input$varsel2)` at stations within the `r renderText(input$wshsel2)` watershed.  The summaries can be shown by year or within months.  The plot option shows the same information as in the table, except each cell is shaded by relative number of observations.  
 
 ```{r}
 column(12, 
@@ -1040,7 +1072,7 @@ renderPlot({staplo()}, height = 500, width = 700)
 
 ## Hotspots {.tabset .tabset-pills}
 
-Hotspots show exceedances relative to thresholds for each constituent.  Median values are applied in the absence of a threshold, which applies only to TKN, TP, and TN.
+This tab show hotspots for stations that have many exceedances over the period of record.  Hotspots are defined by the number of instances when the observed data were above the threshold for the constituent, divided by the total number of observations at a site.  Sites with larger points colored in red have many exceedances, as compared to sites with small points in blue that have few exceedances.  Thresholds are defined targets for each constituent and were obtained from Orange County.  Median values are applied in the absence of a threshold, which applied only to TKN, TP, and TN.
 
 ### Individual constituents
 
@@ -1123,10 +1155,15 @@ column(12,
 )
 ```
 
-Map shows number of exceedances of each station above the selected value across all dates/stations for `r renderText({input$varsel3})`
+This map shows the percentage of observations above a threshold for `r renderText({input$varsel3})` for the period of record between `r renderText(as.character(input$dtssel[1]))` and `r renderText(as.character(input$dtssel[2]))`.  Sites are also filtered based on the number of total observations, where sites sites with as few as `r renderText(input$cntsel[1])` and as many as `r renderText(input$cntsel[2])` observations are shown below.  The threshold defining exceedances for `r renderText({input$varsel3})` is shown above.  
+
+Sites can also be filtered based on the receiving waterbody with a TMDL.  Selecting "TRUE" from the drop-down list will create an additional list to filter the stations by the receiving waterbody. By default, all stations are shown.
+
 ```{r}
 renderLeaflet(hotmap())
 ```
+
+This plot has the same information as the map, but shows relative exceedances grouped by major watersheds.  Note that these watersheds may be different than the receiving TMDL waterbody selection. 
 
 ```{r}
 renderPlot(hotplo(), height = 450, width = 900)
@@ -1155,16 +1192,21 @@ column(12,
 )
 ```
 
-Map shows average number of exceedances of each station above the selected quantile value across all dates/stations for the top ten monitored constituents.
+This map shows the percentage of observations above a threshold for all constituents for the period of record between `r renderText(as.character(input$dtssel2[1]))` and `r renderText(as.character(input$dtssel2[2]))`.  Sites sites with as few as `r renderText(input$cntsel2[1])` and as many as `r renderText(input$cntsel2[2])` average number of observations are shown below.  The map differs from the one in the previous sub-tab by showing the average number of exceedances across all constituents.  The exceedances are defined by quantile distribution of observations for each constituent, and in this case is set at `r renderText(round(100 * as.numeric(input$thrsel3), 0))`%.  
+
 ```{r}
 renderLeaflet(hotmap2())
 ```
+
+This plot has the same information as the map, but shows relative exceedances grouped by major watersheds.  Note that these watersheds may be different than the receiving TMDL waterbody selection. 
 
 ```{r}
 renderPlot(hotplo2(), height = 450, width = 900)
 ```
 
 ## Analyses by waterbody {.tabset .tabset-pills}
+
+This tab shows results across complete time series of exceedances relative to a threshold.  Points in red are above the threshold shown by the dashed line. The top plot shows the complete time series with lines joining observations for the same site. The middle plot shows the same values grouped by year and the bottom plot shows the same values grouped by month.  Sites can be filtered by receiving waterbodies with TMDLs or by major watershed (default). Individual sites can be also removed or added to the plots from the station selection menu. Default thresholds are specific to each parameter.  
 
 ```{r}
 column(12, 
