@@ -886,7 +886,9 @@ HTML(knitr::kable(totab, format = 'html', caption = "Top ten parameters") %>%
 sums <- dwdat %>% 
   mutate(Year = as.character(year(Date))) %>% 
   filter(Parameter %in% tops) %>% 
-  count(Year, Watershed) %>% 
+  group_by(Year, Watershed) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
   bind_rows(group_by(., Year) %>%
               summarise(n = sum(n)) %>%
               mutate(Watershed = 'Total')) %>%
