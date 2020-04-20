@@ -45,7 +45,7 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   # ntot is total obs to estimate
   # tot is vector of values to estimate
   # N is the result
-  No <- 1.5
+  No <- median(log(powdat$Result), na.rm = T)
   a <- -1 * chg * No / simeff
   tot <- 1:simeff
   N <- No + tot * a - a
