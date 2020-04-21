@@ -113,11 +113,12 @@ invtab <- reactive({
 
   # filter by parameters
   sums <- tsdat
-  
+
   if(tabtyp == 'Number of observations'){
     
     sums <- sums %>% 
       dplyr::count(Parameter, StationCode) %>% 
+      filter(Parameter %in% tops) %>% 
       bind_rows(group_by(., Parameter) %>%
                 summarise(n=sum(n)) %>%
                 mutate(StationCode='Total')) %>%
@@ -142,6 +143,7 @@ invtab <- reactive({
     
     sums <- sums %>% 
       select(Parameter, StationCode, Date) %>% 
+      filter(Parameter %in% tops) %>% 
       unique %>% 
       dplyr::count(Parameter, StationCode) %>% 
       bind_rows(group_by(., Parameter) %>%
