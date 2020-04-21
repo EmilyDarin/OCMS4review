@@ -1,2 +1,2 @@
-6000 of 6000 
-Time difference of 44.18479 mins
+120000 of 120000 
+Time difference of 5.941457 hours
