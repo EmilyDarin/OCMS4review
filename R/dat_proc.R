@@ -110,6 +110,7 @@ save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
 # constituent thresholds --------------------------------------------------
 
+# these apply only to dry weather monitoring
 thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>% 
   select_if(~!any(is.na(.))) %>% 
   select(-StationCode) %>% 
@@ -118,7 +119,58 @@ thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>%
 
 save(thrsdat, file = here::here('data/thrsdat.RData'), compress = 'xz')
 
+
+# mass emission thresholds ------------------------------------------------
+
+data(medat)
+
+me_dat <- read.csv(here::here('data/raw', 'ME+NUT_ALL_DATA.csv'), stringsAsFactors = F)
+me_stat <- read.csv(here::here('data/raw', 'ME_Stations.csv'), stringsAsFactors = F)
+
+# get hardness data, metals have variable wqo (thresholds) based on hardness
+mehard <- me_dat %>% 
+  mutate(
+    Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
+    Date = as.Date(Date), 
+    Parameter = case_when(
+      Parameter %in% 'Hardness as CaCO3' ~ 'Hardness',
+      T ~ Parameter
+    )
+  ) %>% 
+  rename(StationCode = Station) %>% 
+  inner_join(me_stat, by = c('StationCode', 'Watershed')) %>%
+  filter(Parameter %in% 'Hardness') %>% 
+  select(StationCode, Watershed, Date, Parameter, Result, Units) %>% 
+  group_by(StationCode) %>% 
+  summarise(hardness = median(Result))
+
+# get unformatted threshold data
+methrsdat <- read_csv(here::here('data/raw/template3 sg.csv'), na = 'N/A') %>% 
+  mutate_all(function(x) gsub('\\sng/L|\\sug/L|\\smg/L', '', x)) %>% 
+  .[1:16, ] %>% 
+  mutate(`Parathion-methyl` = 0.013) %>% 
+  mutate_at(vars(Ag, Ammonia, Cd, Cr, Cu, Ni, Pb, Zn), function(x) NA) %>% 
+  mutate_at(vars(-StationCode), as.numeric) %>% 
+  gather('var', 'val', -StationCode) %>% 
+  left_join(mehard, by = 'StationCode') %>% 
+  mutate(
+    val = case_when(
+      var == 'Ag' ~ 0.85 * exp(1.72 * log(hardness) - 6.52), 
+      var == 'Cd' ~ (1.101672 - log(hardness) * 0.041838) * exp(0.7852 * log(hardness) - 2.715), 
+      var == 'Cr' ~ 0.86 * exp(0.819 * log(hardness) + 1.561), 
+      var == 'Cu' ~ 0.96 * exp(0.8545 * log(hardness) - 1.702), 
+      var == 'Ni' ~ 0.997 * exp(0.846 * log(hardness) + 0.0584), 
+      var == 'Pb' ~ (1.46203 - log(hardness) * 0.145712) * exp(1.273 * log(hardness) - 4.705), 
+      var == 'Zn' ~ 0.986 * exp(0.8473 * log(hardness) + 0.884), 
+      T ~ val
+    )
+  ) %>% 
+  select(-hardness)
+  
+save(methrsdat, file = here::here('data/methrsdat.RData'))
+
 # dry weather sampling tmdl waterbodies -----------------------------------
+
 
 tmdldat <- read_csv(here::here('data/raw/tmdlwaterbodies.csv')) %>% 
   gather('var', 'val', -StationCode) %>% 
