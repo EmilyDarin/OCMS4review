@@ -1,2 +1,2 @@
-120000 of 120000 
-Time difference of 5.941457 hours
+9460 of 61200 
+Time difference of 44.87845 mins

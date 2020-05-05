@@ -1298,7 +1298,6 @@ reactable(tssel,
 )
 ```
 
-
 ## Trends and power analyses {.tabset .tabset-pills}
 
 This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe, one menu for constituent and another for the station.  Each sub-tab contains additional information about the results. For all analyses, __multiple samples per day were averaged__.

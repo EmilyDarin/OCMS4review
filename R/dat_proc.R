@@ -780,17 +780,26 @@ save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('DDT', 'PCB', 'Se')
+tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
 
-scns <- crossing(
-  sta = unique(powdat$StationCode),
-  par = unique(powdat$Parameter), 
-  chg = seq(0.1, 1, length = 10),
-  eff = seq(0.1, 2,length = 10)
-)
+# data to eval, scns is not created all with crossing to minimize number of combos with no data
+scns <- tsdat %>% 
+  select(StationCode, Parameter, Type, Species) %>% 
+  unique %>% 
+  rename(
+    sta = StationCode, 
+    par = Parameter, 
+    typ = Type,
+    spp = Species
+  ) %>% 
+  crossing(
+    .,
+    chg = seq(0.1, 1, length = 10),
+    eff = seq(0.1, 2,length = 10)
+  )
 
 # setup parallel backend
 ncores <- detectCores() - 1 
@@ -810,12 +819,16 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
   
   sta <- scns[i, ][['sta']]
   par <- scns[i, ][['par']]
+  typ <- scns[i, ][['typ']]
+  spp <- scns[i, ][['spp']]
   chg <- scns[i, ][['chg']]
   eff <- scns[i, ][['eff']]
   
   topow <- powdat %>% 
     filter(StationCode %in% sta) %>% 
     filter(Parameter %in% par) %>% 
+    filter(Type %in% typ) %>% 
+    filter(Species %in% spp) %>% 
     arrange(Date)
   
   simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
@@ -844,7 +857,8 @@ save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')
 
 data(tsdat)
 
-tops <- c('DDT', 'PCB', 'Se')
+# tops
+tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 
 # data to eval
 scns <- tsdat %>% 
@@ -854,7 +868,7 @@ scns <- tsdat %>%
     Season = yday(Date),
     dectime = decimal_date(Date)
   ) %>% 
-  group_by(StationCode, Parameter) %>% 
+  group_by(StationCode, Parameter, Type, Species) %>% 
   nest
 
 # setup parallel backend
@@ -950,7 +964,7 @@ data(tspows)
 
 tsopteff <- tspows %>% 
   crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
-  group_by(par, sta, powin) %>% 
+  group_by(par, sta, typ, spp, powin) %>% 
   nest %>% 
   mutate(
     opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
