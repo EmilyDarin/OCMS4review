@@ -68,33 +68,81 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
 # tissue concentrations ---------------------------------------------------
 
-ts_dat <- read.csv(here::here('data/raw', 'NSMP Tissue Data.csv'), stringsAsFactors = F)
+# ts_dat <- read.csv(here::here('data/raw', 'NSMP Tissue Data.csv'), stringsAsFactors = F)
+# ts_stat <- read.csv(here::here('data/raw', 'NSMP_Stations.csv'), stringsAsFactors = F)
+# 
+# # organize tissue stations
+# tsstat <- ts_stat %>% 
+#   select(StationCode, Watershed, Latitude, Longitude)
+# 
+# # wrangle
+# # take daily average across congeners
+# # sum like congeners
+# tsdat <- ts_dat %>% 
+#   mutate(
+#     Date = mdy_hm(Date, tz = "Pacific/Pitcairn"),
+#     Date = as.Date(Date), 
+#     Parameter = case_when(
+#       Parameter %in% '% Solid' ~ 'Percent Solids', 
+#       Parameter %in% 'Percent Solid' ~ 'Percent Solids', 
+#       Parameter %in% 'Se-T' ~ 'Se',
+#       T ~ Parameter
+#     )
+#   ) %>% 
+#   rename(StationCode = Station) %>% 
+#   left_join(tsstat, by = 'StationCode') %>%
+#   select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude) %>% 
+#   group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
+#   summarise(Result = mean(Result, na.rm = T)) %>% 
+#   ungroup %>% 
+#   mutate(
+#     Parameter = case_when(
+#       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
+#       grepl('^PCB', Parameter) ~ 'PCB', 
+#       T ~ Parameter
+#     )
+#   ) %>% 
+#   group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
+#   summarise(Result = sum(Result, na.rm = T)) %>% 
+#   ungroup
+
 ts_stat <- read.csv(here::here('data/raw', 'NSMP_Stations.csv'), stringsAsFactors = F)
 
 # organize tissue stations
-tsstat <- ts_stat %>% 
-  select(StationCode, Watershed, Latitude, Longitude)
+tsstat <- ts_stat %>%
+  select(StationCode, Watershed, Latitude, Longitude) %>% 
+  unique
 
-# wrangle
-# take daily average across congeners
-# sum like congeners
-tsdat <- ts_dat %>% 
-  mutate(
-    Date = mdy_hm(Date, tz = "Pacific/Pitcairn"),
-    Date = as.Date(Date), 
-    Parameter = case_when(
-      Parameter %in% '% Solid' ~ 'Percent Solids', 
-      Parameter %in% 'Percent Solid' ~ 'Percent Solids', 
-      Parameter %in% 'Se-T' ~ 'Se',
-      T ~ Parameter
-    )
+
+# import names and fix
+fl <- 'data/raw/Newport tissue.xlsx'
+renms <- read_excel(here::here(fl)) 
+Parameters <- grep('^\\.\\.\\.', names(renms), value = T, invert = T)
+renms <- read_excel(here::here(fl), skip = 1)
+names(renms)[grepl('\\.\\.\\.|^dw\\sbasis$', names(renms))] <- Parameters
+
+# format long, sum by DDT, PCB
+tsdat <- renms %>% 
+  select(-`CH2 ID`) %>% 
+  rename(
+    StationCode = Station,
+    Type = `Bird egg/fillet/composite`
   ) %>% 
-  rename(StationCode = Station) %>% 
-  left_join(tsstat, by = 'StationCode') %>%
-  select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude) %>% 
-  group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
-  summarise(Result = mean(Result, na.rm = T)) %>% 
-  ungroup %>% 
+  gather('Parameter', 'Result', -StationCode, -Type, -Date, -Species) %>% 
+  mutate(
+    Date = as.Date(Date),
+    Qualifier = case_when(
+      grepl('^<', Result) ~ '<', 
+      grepl('e$', Result) ~ 'e', 
+    ), 
+    Result = gsub('^<|e$|^NR$', '', Result),
+    Result = gsub('ND', '0', Result),
+    Result = as.numeric(Result)#, 
+    # Result = case_when(
+    #   Qualifier == '<' ~ Result / 2,
+    #   T ~ Result
+    # )
+  ) %>% 
   mutate(
     Parameter = case_when(
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
@@ -102,9 +150,30 @@ tsdat <- ts_dat %>%
       T ~ Parameter
     )
   ) %>% 
-  group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
+  # filter(Parameter %in% c('DDT', 'PCB')) %>% 
+  group_by(Species, StationCode, Type, Date, Parameter, Qualifier) %>% 
   summarise(Result = sum(Result, na.rm = T)) %>% 
-  ungroup
+  ungroup %>% 
+  mutate(
+    StationCode2 = StationCode,
+    StationCode = case_when(
+      StationCode == 'SDC' ~ 'SDC@IRWD', 
+      StationCode == 'UCI' ~ 'UCIP-7NSMP', 
+      StationCode == 'BCGC' ~ 'BCW_GC1', 
+      StationCode == 'PCW' ~ 'PCW_WARN', 
+      StationCode == 'BCW' ~ 'BCW_NSMP', 
+      StationCode == 'SAD' ~ 'SADF01', 
+      StationCode == 'uPCW' ~ 'UPCW', 
+      T ~ StationCode
+    ),
+    Units = case_when(
+      Parameter %in% c('%Lipid', '%Solids') ~ '%', 
+      T ~ 'ng/g dw'
+    )
+  ) %>% 
+  left_join(tsstat, by = 'StationCode') %>% 
+  mutate(StationCode = StationCode2) %>% 
+  select(-StationCode2)
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
