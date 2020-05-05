@@ -88,7 +88,7 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(medat)
-data(thrsdat)
+data(methrsdat)
 data(pows)
 data(thrs)
 data(opteff)
@@ -888,10 +888,10 @@ varthr <- reactive({
   
   # input
   varsel <- input$varsel
-  
-  out <- thrsdat %>% 
-    filter(Parameter %in% varsel) %>% 
-    pull(Threshold)
+
+  out <- methrsdat %>% 
+    filter(par %in% varsel) %>% 
+    select(-par)
   
   return(out)
   
@@ -916,29 +916,20 @@ optdat <- reactive({
     filter(Watershed %in% shdsel)
 
   # get median values of constituent for each station
+  # calculate diff from threshold
   meddat <- medat %>% 
     filter(Parameter %in% varsel) %>% 
     filter(StationCode %in% dat$sta) %>% 
     group_by(StationCode) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
-    rename(sta = StationCode)
+    rename(sta = StationCode) %>% 
+    left_join(varthr, by = 'sta') %>% 
+    mutate(
+      thrdif = abs(medval - Threshold),
+      reldif = (thrdif / Threshold)
+    )
   
-  # use threshold if available
-  if(length(varthr) != 0)
-    meddat <- meddat %>% 
-      mutate(
-        thrdif = abs(medval - varthr),
-        reldif = (thrdif / varthr)
-      )
-  
-  if(length(varthr) == 0)
-    meddat <- meddat %>% 
-      mutate(
-        thrdif = NaN,
-        reldif = NaN
-      )
-
   opts <- dat %>% 
     group_by(sta) %>% 
     nest %>% 
@@ -956,7 +947,7 @@ optdat <- reactive({
   validate(
     need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
   )
-  
+
   out <- dat %>% 
     filter(sta %in% opts$sta)
 
@@ -1002,7 +993,7 @@ optplo <- reactive({
   # sort out size vector for reldif if exists or not
   opts <- optdat$opts %>% 
     mutate(
-      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', chg, ', median: ', medval, ', threshold: ', varthr, ', rel. diff: ', round(reldif, 2)
+      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', medval, ', threshold: ', round(Threshold, 2), ', rel. diff: ', round(reldif, 2)
                     ),
       relsz = case_when(
         is.na(reldif) ~ 1,
@@ -1065,6 +1056,13 @@ optdat2 <- reactive({
   else 
     sels <- eval(parse(text = consel2)) 
    
+  # rename methrsdat paramaters for join
+  thrjn <- methrsdat %>% 
+    rename(
+      StationCode = sta, 
+      Parameter = par
+    )
+  
   dat <- pows %>% 
     filter(par %in% !!sels) %>% 
     filter(wxt %in% smpsel) %>% 
@@ -1078,7 +1076,7 @@ optdat2 <- reactive({
     group_by(StationCode, Parameter) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
-    left_join(thrsdat, by = 'Parameter') %>% 
+    left_join(thrjn, by = c('StationCode', 'Parameter')) %>% 
     mutate(
       thrdif = abs(medval - Threshold), 
       reldif = (thrdif / Threshold)
@@ -1162,7 +1160,7 @@ optplo2 <- reactive({
   # sort out size vector for reldif if exists or not
   opts <- opts %>% 
     mutate(
-      labs = paste0(sta, ', ', par, ' effort: ', round(eff, 2), ', change: ', chg, ', median: ', medval, ', threshold: ', Threshold, ', rel. diff: ', round(reldif, 2)
+      labs = paste0(sta, ', ', par, ' effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', medval, ', threshold: ', round(Threshold, 2), ', rel. diff: ', round(reldif, 2)
                     ),
       relsz = case_when(
         is.na(reldif) ~ max(.$reldif, na.rm = T),
@@ -1560,7 +1558,7 @@ This sub-tab summarizes results for the first power analysis across all stations
 
 The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations. 
 
-Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.
+Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.  Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured ata site, e.g., water hardness for metals or pH/Temperature for Ammonia.  
 
 ```{r}
 column(12, 
@@ -1583,7 +1581,7 @@ Note: Changing the station selection above does not affect the estimates since t
 
 ### Optimal effort across constituents
 
-This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold.  
+This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured ata site, e.g., water hardness for metals or pH/Temperature for Ammonia.   
 
 ```{r}
 column(12, 

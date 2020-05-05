@@ -144,28 +144,33 @@ mehard <- me_dat %>%
   group_by(StationCode) %>% 
   summarise(hardness = median(Result))
 
-# get unformatted threshold data
+# format threshold data based on info in raw csv file
+# metals thresholds that vary with hardness are based on equations and median hardness
+# ammonia varies with ph and temp, but here is based on average of tables 4-2, 4-3
+# in https://www.waterboards.ca.gov/santaana/water_issues/programs/basin_plan/docs/2019/New/Chapter_4_June_2019.pdf
 methrsdat <- read_csv(here::here('data/raw/template3 sg.csv'), na = 'N/A') %>% 
   mutate_all(function(x) gsub('\\sng/L|\\sug/L|\\smg/L', '', x)) %>% 
   .[1:16, ] %>% 
   mutate(`Parathion-methyl` = 0.013) %>% 
   mutate_at(vars(Ag, Ammonia, Cd, Cr, Cu, Ni, Pb, Zn), function(x) NA) %>% 
   mutate_at(vars(-StationCode), as.numeric) %>% 
-  gather('var', 'val', -StationCode) %>% 
+  gather('par', 'Threshold', -StationCode) %>% 
   left_join(mehard, by = 'StationCode') %>% 
   mutate(
-    val = case_when(
-      var == 'Ag' ~ 0.85 * exp(1.72 * log(hardness) - 6.52), 
-      var == 'Cd' ~ (1.101672 - log(hardness) * 0.041838) * exp(0.7852 * log(hardness) - 2.715), 
-      var == 'Cr' ~ 0.86 * exp(0.819 * log(hardness) + 1.561), 
-      var == 'Cu' ~ 0.96 * exp(0.8545 * log(hardness) - 1.702), 
-      var == 'Ni' ~ 0.997 * exp(0.846 * log(hardness) + 0.0584), 
-      var == 'Pb' ~ (1.46203 - log(hardness) * 0.145712) * exp(1.273 * log(hardness) - 4.705), 
-      var == 'Zn' ~ 0.986 * exp(0.8473 * log(hardness) + 0.884), 
-      T ~ val
+    Threshold = case_when(
+      par == 'Ag' ~ 0.85 * exp(1.72 * log(hardness) - 6.52), 
+      par == 'Cd' ~ (1.101672 - log(hardness) * 0.041838) * exp(0.7852 * log(hardness) - 2.715), 
+      par == 'Cr' ~ 0.86 * exp(0.819 * log(hardness) + 1.561), 
+      par == 'Cu' ~ 0.96 * exp(0.8545 * log(hardness) - 1.702), 
+      par == 'Ni' ~ 0.997 * exp(0.846 * log(hardness) + 0.0584), 
+      par == 'Pb' ~ (1.46203 - log(hardness) * 0.145712) * exp(1.273 * log(hardness) - 4.705), 
+      par == 'Zn' ~ 0.986 * exp(0.8473 * log(hardness) + 0.884), 
+      par == 'Ammonia' ~ 0.489605844, # this is average of all values in Santa Ana River Basin Plan
+      T ~ Threshold
     )
   ) %>% 
-  select(-hardness)
+  select(-hardness) %>% 
+  rename(sta = StationCode)
   
 save(methrsdat, file = here::here('data/methrsdat.RData'))
 
