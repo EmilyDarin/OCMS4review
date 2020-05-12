@@ -245,7 +245,11 @@ obsp1 <- reactive({
   # inputs
   stapardat <- stapardat()
   stasel <- input$stasel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
 
+  req(sppsel)
+  
   toplo <- stapardat
   ttl <- unique(toplo$Parameter)
 
@@ -256,7 +260,7 @@ obsp1 <- reactive({
     scale_y_log10() +
     scale_colour_manual(values = c('tomato1', 'black'), drop = F) +
     labs(
-      subtitle = stasel,
+      subtitle = paste0(stasel, ', ', typsel, ', ', sppsel),
       title = ttl,
       y = 'Concentration'
     )
@@ -271,6 +275,10 @@ obsp2 <- reactive({
   # inputs
   stapardat <- stapardat()
   stasel <- input$stasel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+
+  req(sppsel)
 
   toplo <- stapardat
   ttl <- unique(toplo$Parameter)
@@ -281,7 +289,7 @@ obsp2 <- reactive({
     scale_y_log10() +
     # scale_colour_manual(values = c('tomato1', 'black')) +
     labs(
-      subtitle = stasel,
+      subtitle = paste0(stasel, ', ', typsel, ', ', sppsel),
       title = paste(ttl, 'by year'),
       y = 'Concentration'
     )
@@ -296,6 +304,10 @@ obsp3 <- reactive({
   # inputs
   stapardat <- stapardat()
   stasel <- input$stasel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+
+  req(sppsel)
 
   toplo <- stapardat
   ttl <- unique(toplo$Parameter)
@@ -306,7 +318,7 @@ obsp3 <- reactive({
     scale_y_log10() +
     # scale_colour_manual(values = c('tomato1', 'black')) +
     labs(
-      subtitle = stasel,
+      subtitle = paste0(stasel, ', ', typsel, ', ', sppsel),
       title = paste(ttl, 'by month'),
       y = 'Concentration'
     )
@@ -464,14 +476,17 @@ powdat <- reactive({
   
   # input
   stasel <- input$stasel
-  varsel <- input$varsel
+  varsel <- input$varsel  
+  typsel <- input$typsel
+  sppsel <- input$sppsel
   
-  req(varsel)
-  req(stasel)
+  req(sppsel)
 
   out <- tsdat %>%
-    filter(StationCode %in% stasel) %>%
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
     filter(Parameter %in% varsel) %>%
+    filter(StationCode %in% stasel) %>%
     mutate(
       Year = year(Date),
       Season = yday(Date),
@@ -488,6 +503,9 @@ powplo1 <- reactive({
   # input
   stasel <- input$stasel
   varsel <- input$varsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+  
   powdat <- powdat()
   
   p <- ggplot(powdat, aes(x = Date, y = Result)) +
@@ -496,7 +514,7 @@ powplo1 <- reactive({
     scale_y_log10() +
     labs(
       title = 'Observed time series',
-      subtitle = stasel,
+      subtitle = paste(stasel, typsel, sppsel, sep = ', '),
       xlab = NULL,
       y = paste0(varsel, '')
     )
@@ -511,10 +529,16 @@ powplo3 <- reactive({
   # input
   stasel <- input$stasel
   varsel <- input$varsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+
+  req(sppsel)
 
   toplo <- tspows %>%
-    filter(sta %in% stasel) %>%
-    filter(par %in% varsel)
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(par %in% varsel) %>%
+    filter(sta %in% stasel) 
 
   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
     # geom_tile() +
@@ -527,7 +551,7 @@ powplo3 <- reactive({
     geom_text_contour() +
     labs(
       y = paste0('Magnitude of trend change (%) of ', varsel),
-      title = paste0('Power estimates for ', stasel),
+      title = paste0('Power estimates for ', stasel, ', ', typsel, ', ', sppsel),
       subtitle = 'Lines show power for varying sample effort and trend magnitude',
       x = 'Relative sample effort'
     )
@@ -542,10 +566,16 @@ powplo6 <- reactive({
   # input
   stasel <- input$stasel
   varsel <- input$varsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+
+  req(sppsel)
 
   toplo <- tsthrs %>%
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
+    filter(Parameter %in% varsel) %>%
     filter(StationCode %in% stasel) %>%
-    filter(Parameter %in% varsel)
 
   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
     # geom_tile() +
@@ -558,7 +588,7 @@ powplo6 <- reactive({
     geom_text_contour() +
     labs(
       y = paste0('Concentration of ', varsel),
-      title = paste0('Power estimates for ', stasel),
+      title = paste0('Power estimates for ', stasel, ', ', typsel, ', ', sppsel),
       subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
       x = 'Relative sample effort'
     )
@@ -1213,7 +1243,7 @@ alltrndmap <- reactive({
 
 This map shows the monitoring stations where tissue sampling data are collected.  The points are colored by the number of years of monitoring at each station. For all stations, nine parameters were measured.
 
-```{r}
+```{r, out.width = '100%'}
 # tomap <- tsdat %>% 
 #   select(StationCode, Parameter, Longitude, Latitude) %>% 
 #   unique %>% 
@@ -1291,7 +1321,7 @@ reactable(tssel,
   groupBy = 'StationCode',
   defaultColDef = colDef(
     footerStyle = list(fontWeight = "bold"),
-    format = colFormat(digits = 2, separators = TRUE),
+    format = colFormat(digits = 0, separators = TRUE),
     resizable = TRUE
     ),
   filterable = T
@@ -1322,7 +1352,9 @@ column(12,
         pull(Parameter) %>% 
         unique()
       
-      selectInput('varsel', 'Select constituent:', choices = tosel)
+      selpick <- ifelse('PCB' %in% tosel, 'PCB', tosel[1])
+      
+      selectInput('varsel', 'Select constituent:', choices = tosel, selected = selpick)
       
     })
   )
@@ -1403,27 +1435,27 @@ Finally, Kendall tests provide an alternative indication of trend by evaluating 
 renderUI({trndtab2()})
 ```
 
-<!-- ### Power analyses -->
+### Power analyses
 
-<!-- This sub-tab shows the results for two different power analyses. Power is described as the likelihood of identifying a trend as statistically significant given the actual magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits ~2x per year across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency. -->
+This sub-tab shows the results for two different power analyses. Power is described as the likelihood of identifying a trend as statistically significant given the actual magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort, with sampling at 100% effort equal to site visits ~2x per year across the period of record.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.
 
-<!-- The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.   -->
+The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo1()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo1()}, height = 350, width = 900)
+```
 
-<!-- Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.  -->
+Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo3()}, height =650, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo3()}, height =650, width = 900)
+```
 
-<!-- A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.    -->
+A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo6()}, height = 650, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo6()}, height = 650, width = 900)
+```
 
 <!-- ### Optimal effort by constituent -->
 

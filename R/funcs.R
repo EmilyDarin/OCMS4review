@@ -31,7 +31,7 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
     
   # model to estimate variance components
   # modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
-  modin <- lm(log(Result) ~ dectime, data = powdat)
+  modin <- lm(log(1 + Result) ~ dectime, data = powdat)
 
   # total variation is the sum of annual, seasonal, and residual variation
   resdvar <- resid(modin) %>% var
@@ -45,7 +45,7 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   # ntot is total obs to estimate
   # tot is vector of values to estimate
   # N is the result
-  No <- median(log(powdat$Result), na.rm = T)
+  No <- median(log(1 + powdat$Result), na.rm = T)
   a <- -1 * chg * No / simeff
   tot <- 1:simeff
   N <- No + tot * a - a
@@ -107,7 +107,7 @@ thrvals <- function(powdat, eff = 1, sims = 100){
     )
   
   # model to estimate variance components
-  modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
+  modin <- gam(log(1 + Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
   
   # total variation is the sum of annual, seasonal, and residual variation
   resdvar <- resid(modin) %>% var
@@ -125,7 +125,7 @@ thrvals <- function(powdat, eff = 1, sims = 100){
   )
 
   # seasonal component from model, then add long-term average
-  ltave <- mean(log(powdat$Result), na.rm = T)
+  ltave <- mean(log(1 + powdat$Result), na.rm = T)
   predcmp <- predict(modin, newdata = basedts, terms = 's(Season)', type = 'terms') %>% 
     as.numeric %>% 
     `+`(ltave)
