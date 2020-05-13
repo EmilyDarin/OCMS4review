@@ -977,3 +977,109 @@ tsopteff <- tspows %>%
 
 save(tsopteff, file = here::here('data', 'tsopteff.RData'), compress = 'xz')
 
+# tissue power analysis for years from current ----------------------------
+
+data(tsdat)
+
+# tops
+tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+
+powdat <- tsdat %>% 
+  filter(Parameter %in% tops)
+
+# years in tissue data record, for simextfun
+tsyrs <- tsdat %>% 
+  mutate(Year = year(Date)) %>% 
+  pull(Year) %>% 
+  unique 
+
+# data to eval, scns is not created all with crossing to minimize number of combos with no data
+scns <- tsdat %>% 
+  select(StationCode, Parameter, Type, Species) %>% 
+  unique %>% 
+  rename(
+    sta = StationCode, 
+    par = Parameter, 
+    typ = Type,
+    spp = Species
+  ) %>% 
+  crossing(
+    .,
+    chg = seq(0.1, 1, length = 10),
+    yrs = seq(5, 50,length = 10)
+  )
+
+# setup parallel backend
+ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 15 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  sta <- scns[i, ][['sta']]
+  par <- scns[i, ][['par']]
+  typ <- scns[i, ][['typ']]
+  spp <- scns[i, ][['spp']]
+  chg <- scns[i, ][['chg']]
+  yrs <- scns[i, ][['yrs']]
+  
+  topow <- powdat %>% 
+    filter(StationCode %in% sta) %>% 
+    filter(Parameter %in% par) %>% 
+    filter(Type %in% typ) %>% 
+    filter(Species %in% spp) %>% 
+    arrange(Date)
+  
+  simdat <- try({simextvals(topow, chg = chg, yrs = yrs, origminyr = min(tsyrs), origmaxyr = max(tsyrs), sims = 1000)})
+  
+  if(inherits(simdat, 'try-error'))
+    return(NA)
+  
+  out <- try({powfun(simdat)})
+  
+  if(inherits(out, 'try-error'))
+    return(NA)
+  
+  return(out)
+  
+}
+
+# combine results with scns
+tsextpows <- scns %>% 
+  mutate(
+    pow = unlist(res)
+  )
+
+save(tsextpows,file = here::here('data', 'tsextpows.RData'), compress = 'xz')
+
+# tisue optimal effort, years from current --------------------------------
+
+source('R/funcs.R')
+
+data(tsextpows)
+
+tsopteffext <- tsextpows %>% 
+  crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
+  rename(eff = yrs) %>% 
+  group_by(par, sta, typ, spp, powin) %>%
+  nest %>% 
+  mutate(
+    opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
+  ) %>% 
+  dplyr::select(-data) %>% 
+  unnest(opt) %>% 
+  dplyr::select(-opt) %>% 
+  na.omit %>% 
+  ungroup %>% 
+  rename(yrs = eff)
+
+save(tsopteffext, file = here::here('data', 'tsopteffext.RData'), compress = 'xz')

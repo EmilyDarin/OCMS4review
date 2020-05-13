@@ -90,6 +90,98 @@ simvals <- function(powdat, chg = 0.5, eff = 1, sims = 100){
   
 }
 
+# simulate time series to a given date for annual, seasonal variance component of input data
+# chg is desired annual change trend
+# yrs is number of years out from final date
+# origminyr starting year for observed data (entire tissue dataset)
+# origmaxyr ending year for observed data (entire tissue dataset)
+# sims is numer of time series to simulate
+simextvals <- function(powdat, chg = 0.5, yrs = 5, origminyr = 2012, origmaxyr = 2018, sims = 100){
+
+  # only run if enough data
+  stopifnot(nrow(powdat) > 2)
+  
+  # add year, season
+  powdat <- powdat %>%
+    mutate(
+      Year = year(Date), 
+      Season = yday(Date),
+      dectime = decimal_date(Date)
+    )
+
+  # total obs
+  ntot <- nrow(powdat)
+  
+  # get current sample effort (events per year)
+  cureff <- ntot / (1 + origmaxyr - origminyr)
+    
+  # base simulation to add to total annual change, scaled by desired effort
+  basedts <- year(powdat$Date) %>% unique
+  endyr <- origmaxyr + yrs
+  
+  # total number of samples for the desired period
+  simeff <- round(cureff * (1 + diff(range(c(endyr,basedts)))))
+  
+  # model to estimate variance components
+  # modin <- gam(log(Result) ~ Year + s(Season, bs = 'cc'), data = powdat)
+  modin <- lm(log(1 + Result) ~ dectime, data = powdat)
+  
+  # total variation is the sum of annual, seasonal, and residual variation
+  resdvar <- resid(modin) %>% var
+  # seasvar <- gam.vcomp(modin, rescale = F)[[1]]
+  # yearvar <- (summary(modin)$se[['Year']] * sqrt(ntot)) ^ 2
+  
+  # estimate annual linear trend given actual signal
+  # chg is desired change from starting value
+  # strt is starting value, arbitrary
+  # a is rate of change per step
+  # ntot is total obs to estimate
+  # tot is vector of values to estimate
+  # N is the result
+  No <- median(log(1 + powdat$Result), na.rm = T)
+  a <- -1 * chg * No / (simeff - 1)
+  tot <- 1:simeff
+  N <- No + tot * a - a
+  
+  # dates to simulate
+  basedts <- mdy(paste0('05-01-', c(origminyr, endyr)))
+  basedts <- seq.Date(basedts[1], basedts[2], length.out = simeff)
+  basedts <- data.frame(
+    Date = basedts, 
+    Year = year(basedts), 
+    Season = yday(basedts), 
+    Month = month(basedts),
+    dectime = decimal_date(basedts)
+  )
+  
+  # seasonal component from model
+  # seascmp <- predict(modin, type = 'terms', exclude = 'Year', newdata = basedts) %>% 
+  #   as.numeric
+  trndcmp <- predict(modin, newdata = basedts)
+  
+  # simdat
+  out <- basedts %>% 
+    mutate(
+      # trndcmp = trndcmp#,
+      annscmp = N#,
+      # seascmp = seascmp
+    ) %>% 
+    crossing(
+      sims = 1:sims
+    ) %>% 
+    mutate(
+      simresd = rnorm(simeff * sims, 0, resdvar),
+      # simseas = rnorm(simeff * sims, 0, seasvar),
+      # simyear = rnorm(simeff * sims, 0, yearvar),
+      # simrand = annscmp + seascmp + simresd + simseas + simyear
+      simrand = annscmp + simresd
+    ) %>% 
+    arrange(sims, Date)
+  
+  return(out)
+  
+}
+
 # simulate time series same as input with random residual component
 # eff is sample effort as proportion from input data
 # sims is numer of time series to simulate
