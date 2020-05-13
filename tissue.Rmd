@@ -508,6 +508,10 @@ powplo1 <- reactive({
   
   powdat <- powdat()
   
+  validate(
+    need(nrow(na.omit(powdat)) > 0, 'Insufficient data')
+  )
+    
   p <- ggplot(powdat, aes(x = Date, y = Result)) +
     geom_line() +
     thm2 +
@@ -540,6 +544,10 @@ powplo3 <- reactive({
     filter(par %in% varsel) %>%
     filter(sta %in% stasel) 
 
+  validate(
+    need(nrow(na.omit(toplo)) > 1, 'Insufficient data')
+  )
+  
   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
     # geom_tile() +
     geom_contour(aes(colour = stat(level))) +
@@ -575,8 +583,12 @@ powplo6 <- reactive({
     filter(Species %in% sppsel) %>% 
     filter(Type %in% typsel) %>% 
     filter(Parameter %in% varsel) %>%
-    filter(StationCode %in% stasel) %>%
+    filter(StationCode %in% stasel)
 
+  validate(
+    need(nrow(na.omit(toplo)) > 1, 'Insufficient data')
+  )
+  
   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
     # geom_tile() +
     geom_contour(aes(colour = stat(level))) +
@@ -604,11 +616,15 @@ stapardat2 <- reactive({
   stasel2 <- input$stasel2
   stasel3 <- input$stasel3
   varsel2 <- input$varsel2
-
-  req(varsel2)
+  typsel2 <- input$typsel2
+  sppsel2 <- input$sppsel2
+  
+  req(sppsel2)
 
   out <- tsdat %>%
     filter(StationCode %in% c(stasel2, stasel3)) %>%
+    filter(Type %in% typsel2) %>% 
+    filter(Species %in% sppsel2) %>% 
     mutate(
       Detection = case_when(
         Qualifier %in% '<' ~ 'below detection',
@@ -623,6 +639,10 @@ stapardat2 <- reactive({
     summarise(Result = median(Result, na.rm = T)) %>% 
     ungroup()
 
+  validate(
+    need(nrow(out) > 1, 'Insufficient data')
+  )
+  
   return(out)
 
 })
@@ -705,12 +725,16 @@ disdat <- reactive({
 
   # input
   varsel2 <- input$varsel2
+  typsel2 <- input$typsel2
+  sppsel2 <- input$sppsel2
 
-  req(varsel2)
+  req(sppsel2)
 
-  dissim <- tsprp %>%
+  dissim <- try({tsprp %>%
     filter(Parameter %in% varsel2) %>%
-    select(-Parameter) %>%
+    filter(Type %in% typsel2) %>% 
+    filter(Species %in% sppsel2) %>% 
+    select(-Parameter, -Type, -Species) %>%
     spread(StationCode, Result) %>%
     column_to_rownames('Date') %>%
     decostand(method = 'log', na.rm = T) %>%
@@ -728,7 +752,11 @@ disdat <- reactive({
     arrange(dist) %>%
     mutate(
       dist = ifelse(StationCode == StationCode2, NA, dist)
-    )
+    )})
+  
+  validate(
+    need(!inherits(dissim, 'try-error'), 'Insufficient data')
+  )
 
   return(dissim)
 
@@ -737,8 +765,17 @@ disdat <- reactive({
 # dissimilarity data, all constituents
 discondat <- reactive({
 
-  dissim <- tsprp %>%
+  # inputs
+  typsel2 <- input$typsel2
+  sppsel2 <- input$sppsel2
+
+  req(sppsel2)
+  
+  dissim <- try({sprp %>%
     filter(Parameter %in% tops) %>%
+    filter(Type %in% typsel2) %>% 
+    filter(Species %in% sppsel2) %>% 
+    select(-Type, -Species) %>% 
     group_by(Parameter) %>%
     nest() %>%
     mutate(
@@ -774,7 +811,11 @@ discondat <- reactive({
     group_by(Parameter, StationCode) %>%
     summarise(dist = mean(dist, na.rm = T)) %>%
     group_by(StationCode) %>%
-    summarise(dist = mean(dist, na.rm = T))
+    summarise(dist = mean(dist, na.rm = T))})
+
+  validate(
+    need(!inherits(dissim, 'try-error'), 'Insufficient data')
+  )
 
   return(dissim)
 
@@ -788,14 +829,19 @@ mulplo <- reactive({
   stasel2 <- input$stasel2
   stasel3 <- input$stasel3
   varsel2 <- input$varsel2
+  typsel2 <- input$typsel2
+  sppsel2 <- input$sppsel2
   
-  req(varsel2)
+  req(sppsel2)
 
   ##
   # PCA
 
   toord <- tsprp %>%
     filter(Parameter %in% tops) %>%
+    filter(Type %in% typsel2) %>% 
+    filter(Species %in% sppsel2) %>% 
+    select(-Type, -Species) %>% 
     spread(Parameter, Result) %>%
     na.omit %>%
     unite('rwnm', StationCode, Date) %>%
@@ -868,14 +914,22 @@ optdat <- reactive({
   # input
   varsel <- input$varsel
   powsel <- input$powsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+  
+  req(sppsel)
 
-  dat <- tspows %>%
-    filter(par %in% varsel)
+  dat <- tspows %>% 
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(par %in% varsel) 
 
   # get weighting for optimal value
   # stations with median value closest to median are given highest weight
   # farther from median, weight decreases
   meddat <- tsdat %>% 
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
     filter(Parameter %in% varsel) %>% 
     filter(StationCode %in% dat$sta) %>% 
     group_by(StationCode) %>% 
@@ -983,14 +1037,22 @@ optdat2 <- reactive({
 
   # input
   powsel2 <- input$powsel2
+  typsel <- input$typsel
+  sppsel <- input$sppsel
   
+  req(sppsel)
+
   dat <- tspows %>% 
-    filter(par %in% tops)
+    filter(par %in% tops) %>% 
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) 
 
   # get weighting for optimal value
   # stations with median value closest to median are given highest weight
   # farther from median, weight decreases
   meddat <- tsdat %>% 
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
     filter(Parameter %in% tops) %>% 
     filter(StationCode %in% dat$sta) %>% 
     group_by(StationCode, Parameter) %>% 
@@ -1009,6 +1071,8 @@ optdat2 <- reactive({
       )
   
   opts <- tspows %>%
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel) %>% 
     group_by(sta, par) %>%
     nest %>%
     mutate(
@@ -1029,10 +1093,14 @@ optdat2 <- reactive({
 
   out <- tspows %>%
     unite('stapar', sta, par, remove = F) %>%
-    filter(stapar %in% opts$stapar)
+    filter(stapar %in% opts$stapar) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel)
 
   selopteff <- tsopteff %>%
-    filter(powin %in% powsel2)
+    filter(powin %in% powsel2) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel)
   
   out <- list(
     toplo = out,
@@ -1070,7 +1138,7 @@ optplo2 <- reactive({
   toplo <- optdat2$toplo
   opts <- optdat2$opts
   selopteff <- optdat2$selopteff
-  
+
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) + 
     geom_boxplot() +
@@ -1119,9 +1187,15 @@ alltrnd <- reactive({
   
   # input
   varsel3 <- input$varsel3
+  typsel3 <- input$typsel3
+  sppsel3 <- input$sppsel3
+  
+  req(sppsel3)
   
   out <- tsdat %>%
     filter(Parameter %in% varsel3) %>%
+    filter(Type %in% typsel3) %>% 
+    filter(Species %in% sppsel3) %>% 
     mutate(
       Year = year(Date),
       Month = month(Date, label = T)
@@ -1192,6 +1266,10 @@ alltrndtab <- reactive({
   
   totab <- alltrnd
   
+  validate(
+    need(nrow(na.omit(totab)) > 0, "Insufficient data")
+  )
+
   HTML(knitr::kable(totab, format = 'html') %>%
     kable_styling(full_width = T, font_size = 14))
 
@@ -1212,6 +1290,10 @@ alltrndmap <- reactive({
     na.omit %>% 
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
+  validate(
+    need(nrow(tomap) > 0, "Insufficient data")
+  )
+  
   # point colors
   cols <- tomap %>%
     mutate(
@@ -1340,58 +1422,61 @@ column(12,
          
   ),
   column(6,
-    renderUI({
-      
-      # inputs
-      stasel <- input$stasel
-      
-      req(stasel)
-      
-      tosel <- tssel %>% 
-        filter(StationCode %in% stasel) %>% 
-        pull(Parameter) %>% 
-        unique()
-      
-      selpick <- ifelse('PCB' %in% tosel, 'PCB', tosel[1])
-      
-      selectInput('varsel', 'Select constituent:', choices = tosel, selected = selpick)
-      
-    })
+  #   renderUI({
+  #     
+  #     # inputs
+  #     stasel <- input$stasel
+  #     
+  #     req(stasel)
+  #     
+  #     tosel <- tssel %>% 
+  #       filter(StationCode %in% stasel) %>% 
+  #       pull(Parameter) %>% 
+  #       unique()
+  #     
+  #     selpick <- ifelse('PCB' %in% tosel, 'PCB', tosel[1])
+  #     
+  #     selectInput('varsel', 'Select constituent:', choices = tosel, selected = selpick)
+  #     
+  #   })
+  # )
+  selectInput('varsel', 'Select constituent:', choices = tops, selected = 'PCB')
   )
 )
 column(12,
   column(6,
-    renderUI({
-      
-      # inputs
-      stasel <- input$stasel
-      varsel <- input$varsel
-      
-      req(varsel)
-      
-      tosel <- tssel %>% 
-        filter(StationCode %in% stasel) %>% 
-        filter(Parameter %in% varsel) %>% 
-        pull(Type) %>% 
-        unique()
-    
-      selectInput('typsel', 'Select tissue type:', choices = tosel)
-      
-    })
+    # renderUI({
+    #   
+    #   # inputs
+    #   stasel <- input$stasel
+    #   varsel <- input$varsel
+    #   
+    #   req(varsel)
+    #   
+    #   tosel <- tssel %>% 
+    #     filter(StationCode %in% stasel) %>% 
+    #     filter(Parameter %in% varsel) %>% 
+    #     pull(Type) %>% 
+    #     unique()
+    # 
+    #   selectInput('typsel', 'Select tissue type:', choices = tosel)
+    #   
+    # })
+    selectInput('typsel', 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"))
   ),
   column(6,
     renderUI({
       
       # inputs
-      stasel <- input$stasel
-      varsel <- input$varsel
+      # stasel <- input$stasel
+      # varsel <- input$varsel
       typsel <- input$typsel
       
       req(typsel)
       
       tosel <- tssel %>% 
-        filter(StationCode %in% stasel) %>% 
-        filter(Parameter %in% varsel) %>% 
+        # filter(StationCode %in% stasel) %>% 
+        # filter(Parameter %in% varsel) %>% 
         filter(Type %in% typsel) %>% 
         pull(Species) %>% 
         unique
@@ -1457,144 +1542,184 @@ A __second__ power analysis was conducted to quantify the likelihood of observin
 renderPlot({powplo6()}, height = 650, width = 900)
 ```
 
-<!-- ### Optimal effort by constituent -->
+### Optimal effort by constituent
 
-<!-- This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).    -->
+This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).
 
-<!-- The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.  -->
+The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.
 
-<!-- Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold. -->
+Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.
 
-<!-- ```{r} -->
-<!-- column(12, -->
-<!--        column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8)) -->
-<!--        ) -->
-<!-- ``` -->
+```{r}
+column(12,
+       column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
+       )
+```
 
-<!-- <br> -->
-<!-- <br> -->
+<br>
+<br>
 
-<!-- `r renderText(opttxt())` -->
+`r renderText(opttxt())`
 
-<!-- ```{r} -->
-<!-- renderPlotly(optplo()) -->
-<!-- ``` -->
+```{r}
+renderPlotly(optplo())
+```
 
-<!-- <br> -->
-<!-- <br> -->
-<!-- Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations. -->
+<br>
+<br>
+Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.
 
-<!-- ### Optimal effort across constituents -->
+### Optimal effort across constituents
 
-<!-- This sub-tab further summarizes power across sites for all constituents. This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold.  -->
+This sub-tab further summarizes power across sites for all constituents. This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold.
 
-<!-- ```{r} -->
-<!-- column(12, -->
-<!--        column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8)) -->
-<!--        ) -->
-<!-- ``` -->
+```{r}
+column(12,
+       column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
+       )
+```
 
-<!-- <br> -->
-<!-- <br> -->
+<br>
+<br>
 
-<!-- `r renderText(opttxt2())` -->
+`r renderText(opttxt2())`
 
-<!-- ```{r} -->
-<!-- output$optplo2 <- renderPlotly(optplo2()) -->
-<!-- plotlyOutput('optplo2', height = '900px') -->
-<!-- ``` -->
+```{r}
+output$optplo2 <- renderPlotly(optplo2())
+plotlyOutput('optplo2', height = '900px')
+```
 
-<!-- <br> -->
-<!-- <br> -->
-<!-- Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents. -->
+<br>
+<br>
+Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents.
 
-<!-- ## Station differences {.tabset .tabset-pills} -->
+## Station differences {.tabset .tabset-pills}
 
-<!-- This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar tissue sample characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.  -->
+This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar tissue sample characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.
 
-<!-- ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'} -->
-<!-- # rename some nutrient parameters -->
-<!-- tsprp <- tsdat %>% -->
-<!--   mutate( -->
-<!--     Date = floor_date(Date, unit = 'month') -->
-<!--   ) %>% -->
-<!--   filter(Parameter %in% tops) %>% -->
-<!--   select(StationCode, Date, Parameter, Result) %>% -->
-<!--   group_by(StationCode, Date, Parameter) %>% -->
-<!--   summarise(Result = mean(Result, na.rm = T)) %>% -->
-<!--   group_by(StationCode, Parameter) %>% -->
-<!--   mutate(Result = case_when( -->
-<!--     is.na(Result) ~ mean(Result, na.rm = T), -->
-<!--     T ~ Result -->
-<!--     ) -->
-<!--   ) %>% -->
-<!--   ungroup() -->
+```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
+# rename some nutrient parameters
+tsprp <- tsdat %>%
+  mutate(
+    Date = floor_date(Date, unit = 'month')
+  ) %>%
+  filter(Parameter %in% tops) %>%
+  select(StationCode, Type, Species, Date, Parameter, Result) %>%
+  group_by(StationCode, Type, Species, Date, Parameter) %>%
+  summarise(Result = mean(Result, na.rm = T)) %>%
+  group_by(StationCode, Type, Species, Parameter) %>%
+  mutate(Result = case_when(
+    is.na(Result) ~ mean(Result, na.rm = T),
+    T ~ Result
+    )
+  ) %>%
+  ungroup()
 
-<!-- siteshd <- tsprp %>% -->
-<!--   select(StationCode) %>% -->
-<!--   unique -->
-<!-- ``` -->
+siteshd <- tsprp %>%
+  select(StationCode) %>%
+  unique
+```
 
-<!-- ```{r} -->
-<!-- column(12, -->
-<!--   column(6, -->
-<!--     selectInput('varsel2', 'Select constituent:', choices = tops) -->
-<!--   ) -->
-<!-- ) -->
-<!-- column(12, -->
-<!--   column(6, -->
-<!--          selectInput('stasel2', 'Select first station:', choices = unique(tspows$sta), selected = 'UNB') -->
-<!--   ), -->
-<!--   column(6, -->
-<!--        selectInput('stasel3', 'Select second station:', choices = unique(tspows$sta), selected = 'IRWD') -->
-<!--   ) -->
-<!-- ) -->
-<!-- ``` -->
+```{r}
+column(12,
+  column(4,
+    selectInput('varsel2', 'Select constituent:', choices = tops)
+  ),
+  column(4, 
+    selectInput('typsel2', 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"))
+  ),
+  column(4,
+    renderUI({
+      
+      # inputs
+      typsel2 <- input$typsel2
+      
+      req(typsel2)
+      
+      tosel <- tssel %>% 
+        filter(Type %in% typsel2) %>% 
+        pull(Species) %>% 
+        unique
 
-<!-- This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).   -->
+      selectInput('sppsel2', 'Select species:', choices = tosel)
+          
+    })
+  )
+)
+column(12,
+  column(6,
+    selectInput('stasel2', 'Select first station:', choices = unique(tspows$sta), selected = 'UNB')
+  ),
+  column(6,
+    selectInput('stasel3', 'Select second station:', choices = unique(tspows$sta), selected = 'IRWD')
+  )
+)
+```
 
-<!-- ```{r} -->
-<!-- renderPlot({mulplo()}, height = 550, width = 900) -->
-<!-- ``` -->
+This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).
 
-<!-- Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month.  -->
+```{r}
+renderPlot({mulplo()}, height = 550, width = 900)
+```
 
-<!-- ### Time series -->
+Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month.
 
-<!-- ```{r} -->
-<!-- renderPlot({obsp4()}, height = 450, width = 700) -->
-<!-- ``` -->
+### Time series
 
-<!-- ### By year -->
+```{r}
+renderPlot({obsp4()}, height = 450, width = 700)
+```
 
-<!-- ```{r} -->
-<!-- renderPlot({obsp5()}, height = 450, width = 700) -->
-<!-- ``` -->
+### By year
 
-<!-- ### By month -->
+```{r}
+renderPlot({obsp5()}, height = 450, width = 700)
+```
 
-<!-- ```{r} -->
-<!-- renderPlot({obsp6()}, height = 450, width = 700) -->
-<!-- ``` -->
+### By month
 
-<!-- ## Overall trends -->
+```{r}
+renderPlot({obsp6()}, height = 450, width = 700)
+```
 
-<!-- ```{r} -->
-<!-- column(12,  -->
-<!--        column(6,  -->
-<!--               selectInput('varsel3', 'Select constituent:', choices = tops) -->
-<!--   ) -->
-<!-- ) -->
-<!-- ``` -->
+## Overall trends
 
-<!-- This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test. -->
+```{r}
+column(12,
+  column(4,
+    selectInput('varsel3', 'Select constituent:', choices = tops)
+  ),
+  column(4, 
+    selectInput('typsel3', 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"))
+  ),
+  column(4,
+    renderUI({
+      
+      # inputs
+      typsel3 <- input$typsel3
+      
+      req(typsel3)
+      
+      tosel <- tssel %>% 
+        filter(Type %in% typsel3) %>% 
+        pull(Species) %>% 
+        unique
 
-<!-- The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map. -->
+      selectInput('sppsel3', 'Select species:', choices = tosel)
+          
+    })
+  )
+)
+```
 
-<!-- ```{r} -->
-<!-- renderLeaflet(alltrndmap()) -->
-<!-- ``` -->
+This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-<!-- ```{r} -->
-<!-- renderUI(alltrndtab()) -->
-<!-- ``` -->
+The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map.
+
+```{r}
+renderLeaflet(alltrndmap())
+```
+
+```{r}
+renderUI(alltrndtab())
+```
