@@ -98,8 +98,10 @@ pbase <- theme_bw(base_family = 'serif') +
 
 data(tsdat)
 data(tspows)
+data(tsextpows)
 data(tsthrs)
 data(tsopteff)
+data(tsopteffext)
 
 # for conditional UI selections
 tssel <- tsdat %>% 
@@ -497,36 +499,6 @@ powdat <- reactive({
   
 })
 
-# first power analysis plot
-powplo1 <- reactive({
-  
-  # input
-  stasel <- input$stasel
-  varsel <- input$varsel
-  typsel <- input$typsel
-  sppsel <- input$sppsel
-  
-  powdat <- powdat()
-  
-  validate(
-    need(nrow(na.omit(powdat)) > 0, 'Insufficient data')
-  )
-    
-  p <- ggplot(powdat, aes(x = Date, y = Result)) +
-    geom_line() +
-    thm2 +
-    scale_y_log10() +
-    labs(
-      title = 'Observed time series',
-      subtitle = paste(stasel, typsel, sppsel, sep = ', '),
-      xlab = NULL,
-      y = paste0(varsel, '')
-    )
-  
-  return(p)
-  
-})
-
 # third power plot
 powplo3 <- reactive({
 
@@ -562,6 +534,47 @@ powplo3 <- reactive({
       title = paste0('Power estimates for ', stasel, ', ', typsel, ', ', sppsel),
       subtitle = 'Lines show power for varying sample effort and trend magnitude',
       x = 'Relative sample effort'
+    )
+
+  p
+
+})
+
+# fourth power plot
+powplo4 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+
+  req(sppsel)
+
+  toplo <- tsextpows %>%
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(par %in% varsel) %>%
+    filter(sta %in% stasel) 
+
+  validate(
+    need(nrow(na.omit(toplo)) > 1, 'Insufficient data')
+  )
+  
+  p <- ggplot(toplo, aes(x = yrs, y = chg, z = pow)) +
+    # geom_tile() +
+    geom_contour(aes(colour = stat(level))) +
+    scale_colour_viridis_c('Power') +
+    thm2 +
+    theme(legend.position = 'none') +
+    # scale_x_continuous(limits = c(0, 1)) +
+    # scale_y_continuous(limits = c(0, 1)) +
+    geom_text_contour() +
+    labs(
+      y = paste0('Magnitude of trend change (%) of ', varsel),
+      title = paste0('Power estimates for ', stasel, ', ', typsel, ', ', sppsel),
+      subtitle = 'Lines show power for varying sample effort and trend magnitude',
+      x = 'Years from present'
     )
 
   p
@@ -1527,16 +1540,22 @@ This sub-tab shows the results for two different power analyses. Power is descri
 The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.
 
 ```{r}
-renderPlot({powplo1()}, height = 350, width = 900)
+renderPlot({obsp1()}, height = 350, width = 900)
 ```
 
-Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.
+Results for the power analyses are shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.
 
 ```{r}
-renderPlot({powplo3()}, height =650, width = 900)
+renderPlot({powplo3()}, height = 650, width = 900)
 ```
 
-A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.
+A __second__ power analysis was conducted that was similar to the first, except that power was evaluated relative to length of time at the observed level of sampling effort.  This analysis identifies the level of power at which a specified trend is observed relative to a specified period of time from the present.  In other words, how much time must pass before a certain trend is observed given the curent sampling effort? 
+
+```{r}
+renderPlot({powplo4()}, height = 650, width = 900)
+```
+
+A __third__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.
 
 ```{r}
 renderPlot({powplo6()}, height = 650, width = 900)
