@@ -783,7 +783,7 @@ discondat <- reactive({
   sppsel2 <- input$sppsel2
 
   req(sppsel2)
-  
+
   dissim <- try({sprp %>%
     filter(Parameter %in% tops) %>%
     filter(Type %in% typsel2) %>% 
@@ -882,7 +882,7 @@ mulplo <- reactive({
       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
     )
 
-  p1 <- ggord(ord, size = 1, alpha = 0.4, vec_ext = 5, coord_fix = F) +
+  p1 <- ggord(ord, size = 1, alpha = 0.4, vec_ext = 5, coord_fix = F, parse = F) +
     scale_fill_viridis_d(guide_legend(ncol = 1)) +
     geom_point(data = vals, aes(alpha = StationCode), size = 3) +
     scale_alpha_manual(values = c(0.2, 0.8)) +
@@ -955,7 +955,7 @@ optdat <- reactive({
     ) %>% 
     rename(sta = StationCode)
 
-  opts <- dat %>%
+  opts <- try({dat %>%
     group_by(sta) %>%
     nest %>%
     mutate(
@@ -967,6 +967,11 @@ optdat <- reactive({
     na.omit %>%
     ungroup %>% 
     left_join(meddat, by = 'sta')
+  })
+  
+  validate(
+    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power or different constituent')
+  )
   
   # cut if no data
   validate(
@@ -994,7 +999,7 @@ opttxt <- reactive({
 
   opts <- optdat$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  out <- paste0("Optimal sample effort at ", powsel, " power: ", medv , ' relative effort')
+  out <- paste0("The optimal sample effort at ", powsel, " power: ", medv , ' relative effort')
 
   return(out)
 
@@ -1031,6 +1036,137 @@ optplo <- reactive({
     thm3 +
     labs(
       x = 'Relative sample effort', 
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+
+  pout1 <- ggplotly(p1, height = 150, width = 900)
+  pout2 <- ggplotly(p2, height = 450, width = 900)
+
+  out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
+  return(out)
+
+})
+
+# optimal sample effort data, time since present
+optextdat <- reactive({
+
+  # input
+  varsel <- input$varsel
+  powsel <- input$powsel
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+  
+  req(sppsel)
+
+  dat <- tsextpows %>% 
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(par %in% varsel) 
+
+  # get weighting for optimal value
+  # stations with median value closest to median are given highest weight
+  # farther from median, weight decreases
+  meddat <- tsdat %>% 
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
+    filter(Parameter %in% varsel) %>% 
+    filter(StationCode %in% dat$sta) %>% 
+    group_by(StationCode) %>% 
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>% 
+    rename(sta = StationCode)
+
+  opts <- try({dat %>%
+    group_by(sta) %>%
+    rename(eff = yrs) %>%   
+    nest %>%
+    mutate(
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel))
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(opt) %>%
+    dplyr::select(sta, eff, chg) %>%
+    rename(yrs = eff) %>% 
+    na.omit %>%
+    ungroup %>% 
+    left_join(meddat, by = 'sta')
+  })
+  
+  validate(
+    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power or different constituent')
+  )
+  
+  # cut if no data
+  validate(
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
+  )
+
+  out <- dat %>%
+    filter(sta %in% opts$sta)
+
+  out <- list(
+    toplo = out,
+    opts = opts
+  )
+
+  return(out)
+
+})
+
+# text for optimal plot 1, time since present
+optexttxt <- reactive({
+
+  # input
+  powsel <- input$powsel
+  optextdat <- optextdat()
+
+  opts <- optextdat$opts
+  medv <- median(opts$yrs, na.rm = T) %>% round(2)
+  out <- paste0("The optimal sample effort at ", powsel, " power: ", medv , ' years')
+
+  return(out)
+
+})
+
+# optimal plot, by constituent, time since present
+optextplo <- reactive({
+
+  # inputs
+  optextdat <- optextdat()
+  powsel <- input$powsel
+
+  toplo <- optextdat$toplo
+  opts <- optextdat$opts
+
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = yrs)) +
+    geom_boxplot() +
+    scale_y_continuous(limits = c(5, 50)) +
+    coord_flip() +
+    theme_void() +
+    theme(
+      panel.border = element_blank(),
+      panel.grid = element_blank()
+    )
+
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = yrs, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) + 
+    # geom_text_repel(data = opts, aes(x = yrs, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = yrs, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    scale_size_continuous(guide = F) + 
+    scale_x_continuous(limits = c(5, 50)) + 
+    thm3 +
+    labs(
+      x = 'Years from present', 
       y = paste0('Magnitude of trend change (%)')
     )
 
@@ -1083,7 +1219,7 @@ optdat2 <- reactive({
       par = Parameter
       )
   
-  opts <- tspows %>%
+  opts <- try({tspows %>%
     filter(typ %in% typsel) %>% 
     filter(spp %in% sppsel) %>% 
     group_by(sta, par) %>%
@@ -1099,11 +1235,21 @@ optdat2 <- reactive({
     ungroup %>% 
     left_join(meddat,by = c('sta', 'par'))
 
+  })
+  
+  validate(
+    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power')
+  )
+  
   # cut if no data
   validate(
-    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data, try lower power')
   )
 
+  validate(
+    need('eff' %in% names(opts), 'Insufficient data, try lower power')
+  )
+  
   out <- tspows %>%
     unite('stapar', sta, par, remove = F) %>%
     filter(stapar %in% opts$stapar) %>% 
@@ -1131,11 +1277,11 @@ opttxt2 <- reactive({
   # input
   powsel2 <- input$powsel2
   optdat2 <- optdat2()
-  
+
   opts <- optdat2$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
   
-  out <- paste0("Optimal sample effort at ", powsel2, " power: ", medv , ' relative effort')
+  out <- paste0("The optimal sample effort at ", powsel2, " power: ", medv , ' relative effort')
 
   return(out)
 
@@ -1187,6 +1333,163 @@ optplo2 <- reactive({
   layout(
     yaxis = list(title = ''), 
     xaxis = list(title= 'Optimal effort by site'), 
+    showlegend = F
+    )
+
+  out <- subplot(pout3, pout1, pout2, nrows = 3, heights = c(0.35, 0.1, 0.55), shareX = T, titleY = T)
+  return(out)
+  
+})
+
+# optimal sample effort data, all constituents, time since present
+optextdat2 <- reactive({
+
+  # input
+  powsel2 <- input$powsel2
+  typsel <- input$typsel
+  sppsel <- input$sppsel
+  
+  req(sppsel)
+
+  dat <- tsextpows %>% 
+    filter(par %in% tops) %>% 
+    filter(spp %in% sppsel) %>% 
+    filter(typ %in% typsel) 
+
+  # get weighting for optimal value
+  # stations with median value closest to median are given highest weight
+  # farther from median, weight decreases
+  meddat <- tsdat %>% 
+    filter(Species %in% sppsel) %>% 
+    filter(Type %in% typsel) %>% 
+    filter(Parameter %in% tops) %>% 
+    filter(StationCode %in% dat$sta) %>% 
+    group_by(StationCode, Parameter) %>% 
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    group_by(Parameter) %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>%
+    ungroup() %>% 
+    rename(
+      sta = StationCode, 
+      par = Parameter
+      )
+  
+  opts <- try({tsextpows %>%
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel) %>% 
+    group_by(sta, par) %>%
+    rename(eff = yrs) %>% 
+    nest %>%
+    mutate(
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel2))
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(opt) %>%
+    rename(yrs = eff) %>% 
+    dplyr::select(-opt) %>%
+    na.omit %>%
+    unite('stapar', sta, par, remove = F) %>%
+    ungroup %>% 
+    left_join(meddat,by = c('sta', 'par'))
+  })
+  
+  validate(
+    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power')
+  )
+  
+  # cut if no data
+  validate(
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data, try lower power')
+  )
+
+  out <- tsextpows %>%
+    unite('stapar', sta, par, remove = F) %>%
+    filter(stapar %in% opts$stapar) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel)
+
+  selopteff <- tsopteffext %>%
+    filter(powin %in% powsel2) %>% 
+    filter(typ %in% typsel) %>% 
+    filter(spp %in% sppsel)
+  
+  out <- list(
+    toplo = out,
+    opts = opts,
+    selopteff = selopteff
+  )
+
+  return(out)
+
+})
+
+# text for optimal plot 2, time since present
+optexttxt2 <- reactive({
+
+  # input
+  powsel2 <- input$powsel2
+  optextdat2 <- optextdat2()
+  
+  opts <- optextdat2$opts
+  medv <- median(opts$yrs, na.rm = T) %>% round(2)
+  
+  out <- paste0("The optimal sample effort at ", powsel2, " power: ", medv , ' years')
+
+  return(out)
+
+})
+
+# optimal plot, all constituents, time since present
+optextplo2 <- reactive({
+
+  # inputs
+  optextdat2 <- optextdat2()
+  powsel2 <- input$powsel2
+  
+  toplo <- optextdat2$toplo
+  opts <- optextdat2$opts
+  selopteff <- optextdat2$selopteff
+
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = yrs)) + 
+    geom_boxplot() +
+    scale_y_continuous(limits = c(5, 50)) + 
+    coord_flip() + 
+    theme_void() + 
+    theme(
+      panel.border = element_blank(), 
+      panel.grid = element_blank()
+    )
+  
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = yrs, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) + 
+    # geom_text_repel(data = opts, aes(x = yrs, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = yrs, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    scale_x_continuous(limits = c(5, 50)) + 
+    scale_size_continuous(guide = F) + 
+    thm3 +
+    labs(
+      x = 'Years from present', 
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+  
+  pout1 <- ggplotly(p1)#, height = 150, width = 900)
+  pout2 <- ggplotly(p2)#, height = 450, width = 900)
+  
+  pout3 <- plot_ly() %>% 
+    add_trace(data = selopteff, y = ~par, x = ~yrs, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
+  layout(
+    yaxis = list(title = ''), 
+    xaxis = list(title= 'Optimal time by site'), 
     showlegend = F
     )
 
@@ -1563,7 +1866,7 @@ renderPlot({powplo6()}, height = 650, width = 900)
 
 ### Optimal effort by constituent
 
-This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).
+This sub-tab summarizes results for the first and second power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort and optimal time to wait to observed a specified trend.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).  Note that changing the station selection above does not affect the estimates below since the optimal level is an aggregate across stations.
 
 The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.
 
@@ -1578,7 +1881,7 @@ column(12,
 <br>
 <br>
 
-`r renderText(opttxt())`
+This plot shows power as a function of sample effort. `r renderText(opttxt())`
 
 ```{r}
 renderPlotly(optplo())
@@ -1586,11 +1889,20 @@ renderPlotly(optplo())
 
 <br>
 <br>
-Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.
+
+This plot shows power as a function of time from present (years). `r renderText(optexttxt())`
+
+```{r}
+renderPlotly(optextplo())
+```
+
+<br>
+<br>
 
 ### Optimal effort across constituents
 
-This sub-tab further summarizes power across sites for all constituents. This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold.
+This sub-tab further summarizes power for the first and second power analysis across sites for all constituents. These are the same plots as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents.  Each of the two plots includes subplots.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents.
+
 
 ```{r}
 column(12,
@@ -1601,16 +1913,25 @@ column(12,
 <br>
 <br>
 
-`r renderText(opttxt2())`
+This plot shows power as a function of sample effort. `r renderText(opttxt2())`
 
 ```{r}
 output$optplo2 <- renderPlotly(optplo2())
-plotlyOutput('optplo2', height = '900px')
+plotlyOutput('optplo2', height = '700px')
 ```
 
 <br>
 <br>
-Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents.
+
+This plot shows power as a function of time from present (years). `r renderText(optexttxt2())`
+
+```{r}
+output$optextplo2 <- renderPlotly(optextplo2())
+plotlyOutput('optextplo2', height = '700px')
+```
+
+<br>
+<br>
 
 ## Station differences {.tabset .tabset-pills}
 
