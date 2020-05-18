@@ -43,6 +43,7 @@ library(ggExtra)
 library(plotly)
 library(matrixStats)
 library(reactable)
+library(shinyWidgets)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -115,13 +116,15 @@ tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonach
 
 ```{r reactives}
 # inventory table
-invtab <- reactive({
+invtab1 <- reactive({
   
   # input
   tabtyp <- input$tabtyp
+  typsel4 <- input$typsel4
 
   # filter by parameters
-  sums <- tsdat
+  sums <- tsdat %>% 
+    filter(Type %in% typsel4)
 
   if(tabtyp == 'Number of observations'){
     
@@ -204,6 +207,46 @@ invtab <- reactive({
     
 })
 
+# unique sample years table
+invtab2 <- reactive({
+  
+  # inputs
+  typsel4 <- input$typsel4
+  
+  sums <- tsdat %>%
+    filter(Type %in% typsel4) %>% 
+    mutate(Year = as.character(year(Date))) %>% 
+    filter(Parameter %in% tops) %>% 
+    select(StationCode, Parameter, Year) %>% 
+    unique %>% 
+    dplyr::count(StationCode, Parameter) %>% 
+    spread(Parameter, n, fill = 0)
+  
+  HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample years at each site, by parameter") %>% 
+    kable_styling(full_width = T, font_size = 14))  
+  
+})
+
+# unique sample months
+invtab3 <- reactive({
+  
+  # input
+  typsel4 <- input$typsel4
+  
+  sums <- tsdat %>%
+    filter(Type %in% typsel4) %>% 
+    mutate(Month = as.character(month(Date))) %>% 
+    filter(Parameter %in% tops) %>% 
+    select(StationCode, Parameter, Month) %>% 
+    unique %>% 
+    dplyr::count(StationCode, Parameter) %>% 
+    spread(Parameter, n, fill = 0)
+  
+  HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample months at each site, by parameter") %>% 
+    kable_styling(full_width = T, font_size = 14))
+
+})
+
 # selected station, parameter data, values are median for unique days
 stapardat <- reactive({
 
@@ -214,7 +257,11 @@ stapardat <- reactive({
   sppsel <- input$sppsel
   
   req(sppsel)
-
+ 
+  validate(
+    need(length(sppsel) == 1, "Select one species to view results on this tab")
+  )
+  
   out <- tsdat %>%
     filter(Species %in% sppsel) %>% 
     filter(Type %in% typsel) %>% 
@@ -473,32 +520,6 @@ trndtab2 <- reactive({
 
 })
 
-# power analysis data
-powdat <- reactive({
-  
-  # input
-  stasel <- input$stasel
-  varsel <- input$varsel  
-  typsel <- input$typsel
-  sppsel <- input$sppsel
-  
-  req(sppsel)
-
-  out <- tsdat %>%
-    filter(Species %in% sppsel) %>% 
-    filter(Type %in% typsel) %>% 
-    filter(Parameter %in% varsel) %>%
-    filter(StationCode %in% stasel) %>%
-    mutate(
-      Year = year(Date),
-      Season = yday(Date),
-      dectime = decimal_date(Date)
-    )
-
-  return(out)
-  
-})
-
 # third power plot
 powplo3 <- reactive({
 
@@ -510,6 +531,10 @@ powplo3 <- reactive({
 
   req(sppsel)
 
+  validate(
+    need(length(sppsel) == 1, "Select one species to view results on this tab")
+  )
+  
   toplo <- tspows %>%
     filter(spp %in% sppsel) %>% 
     filter(typ %in% typsel) %>% 
@@ -551,6 +576,10 @@ powplo4 <- reactive({
 
   req(sppsel)
 
+  validate(
+    need(length(sppsel) == 1, "Select one species to view results on this tab")
+  )
+  
   toplo <- tsextpows %>%
     filter(spp %in% sppsel) %>% 
     filter(typ %in% typsel) %>% 
@@ -592,6 +621,10 @@ powplo6 <- reactive({
 
   req(sppsel)
 
+  validate(
+    need(length(sppsel) == 1, "Select one species to view results on this tab")
+  )
+  
   toplo <- tsthrs %>%
     filter(Species %in% sppsel) %>% 
     filter(Type %in% typsel) %>% 
@@ -1676,38 +1709,19 @@ The bottom two tables show the number of unique sample years and the number of u
 
 ```{r}
 column(12, 
-       column(4, 
-         selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Number of unique sample days', 'Variance', 'Median absolute deviation'))
-       )
+  column(4, 
+    selectInput('tabtyp', 'Table type:', choices = c('Number of observations', 'Number of unique sample days', 'Variance', 'Median absolute deviation'))
+  ), 
+  column(4,
+    pickerInput('typsel4', label = 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"), selected = 'bird egg', options = list(`actions-box` = TRUE), multiple = TRUE)
+  )
 )
 ```
 
 ```{r}
-renderUI(invtab())
-```
-
-```{r toptabyr}
-sums <- tsdat %>%
-  mutate(Year = as.character(year(Date))) %>% 
-  filter(Parameter %in% tops) %>% 
-  select(StationCode, Parameter, Year) %>% 
-  unique %>% 
-  dplyr::count(StationCode, Parameter) %>% 
-  spread(Parameter, n, fill = 0)
-HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample years at each site, by parameter") %>% 
-       kable_styling(full_width = T, font_size = 14))
-```
-
-```{r toptabmo}
-sums <- tsdat %>%
-  mutate(Month = as.character(month(Date))) %>% 
-  filter(Parameter %in% tops) %>% 
-  select(StationCode, Parameter, Month) %>% 
-  unique %>% 
-  dplyr::count(StationCode, Parameter) %>% 
-  spread(Parameter, n, fill = 0)
-HTML(knitr::kable(sums, format = 'html', caption = "Number of unique sample months at each site, by parameter") %>% 
-       kable_styling(full_width = T, font_size = 14))
+renderUI(invtab1())
+renderUI(invtab2())
+renderUI(invtab3())
 ```
 
 ### Tabular, sample type summary
@@ -1778,7 +1792,8 @@ column(12,
     #   selectInput('typsel', 'Select tissue type:', choices = tosel)
     #   
     # })
-    selectInput('typsel', 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"))
+    pickerInput('typsel', label = 'Select tissue type:', choices = c("bird egg", "comp", "fillet", "remaining tissue"), selected = 'bird egg', options = list(`actions-box` = TRUE), multiple = TRUE)
+    
   ),
   column(6,
     renderUI({
@@ -1797,8 +1812,9 @@ column(12,
         pull(Species) %>% 
         unique
 
-      selectInput('sppsel', 'Select species:', choices = tosel)
-          
+      pickerInput(inputId = "sppsel", label = 'Select species:', choices = tosel,
+        options = list(`actions-box` = TRUE), selected = tosel[1], multiple = TRUE)
+
     })
   )
 )
