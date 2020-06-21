@@ -111,7 +111,7 @@ tssel <- tsdat %>%
 
 # tops
 # tops <- c('DDT', 'PCB', 'Se')
-tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 ```
 
 ```{r reactives}

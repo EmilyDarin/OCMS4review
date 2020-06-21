@@ -175,6 +175,18 @@ tsdat <- renms %>%
   mutate(StationCode = StationCode2) %>% 
   select(-StationCode2)
 
+# get total chlordanes as sum of alpha, gamma, cis, trans
+chlr <- tsdat %>% 
+  filter(Parameter %in% c('Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'trans-Nonachlor')) %>% 
+  mutate(Parameter = 'Total chlordane') %>% 
+  group_by(Species, StationCode, Type, Date, Parameter, Units, Watershed, Latitude, Longitude) %>% 
+  summarise(Result = sum(Result, na.rm = T)) %>% 
+  ungroup %>% 
+  mutate(Qualifier = NA)
+
+tsdat <- tsdat %>% 
+  bind_rows(chlr)
+
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
 # constituent thresholds --------------------------------------------------
@@ -780,7 +792,7 @@ save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
@@ -858,7 +870,7 @@ save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 
 # data to eval
 scns <- tsdat %>% 
@@ -982,7 +994,7 @@ save(tsopteff, file = here::here('data', 'tsopteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
