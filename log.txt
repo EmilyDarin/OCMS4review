@@ -1,2 +1,2 @@
-68000 of 68000 
-Time difference of 2.644271 hours
+65600 of 65600 
+Time difference of 2.501238 hours
