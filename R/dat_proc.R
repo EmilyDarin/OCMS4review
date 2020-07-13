@@ -108,7 +108,7 @@ tsdat <- Parenms %>%
     Parameter = case_when(
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
       grepl('^PCB', Parameter) ~ 'PCB', 
-      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
       T ~ Parameter
     )
   ) %>% 
@@ -743,7 +743,7 @@ save(opteff, file = here::here('data', 'opteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c("%Lipid", "%Solids", "DDT", "Hg", "PCB", "Se", "Total chlordane", "Toxaphene")
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
@@ -821,7 +821,7 @@ save(tspows,file = here::here('data', 'tspows.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c("%Lipid", "%Solids", "DDT", "Hg", "PCB", "Se", "Total chlordane", "Toxaphene")
 
 # data to eval
 scns <- tsdat %>% 
@@ -945,7 +945,7 @@ save(tsopteff, file = here::here('data', 'tsopteff.RData'), compress = 'xz')
 data(tsdat)
 
 # tops
-tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c("%Lipid", "%Solids", "DDT", "Hg", "PCB", "Se", "Total chlordane", "Toxaphene")
 
 powdat <- tsdat %>% 
   filter(Parameter %in% tops)
