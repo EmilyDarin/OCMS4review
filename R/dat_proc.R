@@ -68,62 +68,27 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
 # tissue concentrations ---------------------------------------------------
 
-# ts_dat <- read.csv(here::here('data/raw', 'NSMP Tissue Data.csv'), stringsAsFactors = F)
-# ts_stat <- read.csv(here::here('data/raw', 'NSMP_Stations.csv'), stringsAsFactors = F)
-# 
-# # organize tissue stations
-# tsstat <- ts_stat %>% 
-#   select(StationCode, Watershed, Latitude, Longitude)
-# 
-# # wrangle
-# # take daily average across congeners
-# # sum like congeners
-# tsdat <- ts_dat %>% 
-#   mutate(
-#     Date = mdy_hm(Date, tz = "Pacific/Pitcairn"),
-#     Date = as.Date(Date), 
-#     Parameter = case_when(
-#       Parameter %in% '% Solid' ~ 'Percent Solids', 
-#       Parameter %in% 'Percent Solid' ~ 'Percent Solids', 
-#       Parameter %in% 'Se-T' ~ 'Se',
-#       T ~ Parameter
-#     )
-#   ) %>% 
-#   rename(StationCode = Station) %>% 
-#   left_join(tsstat, by = 'StationCode') %>%
-#   select(StationCode, Date, Parameter, Result, Units, Qualifier, Longitude, Latitude) %>% 
-#   group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
-#   summarise(Result = mean(Result, na.rm = T)) %>% 
-#   ungroup %>% 
-#   mutate(
-#     Parameter = case_when(
-#       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
-#       grepl('^PCB', Parameter) ~ 'PCB', 
-#       T ~ Parameter
-#     )
-#   ) %>% 
-#   group_by(StationCode, Date, Parameter, Units, Qualifier, Longitude, Latitude) %>% 
-#   summarise(Result = sum(Result, na.rm = T)) %>% 
-#   ungroup
-
+# station location
 ts_stat <- read.csv(here::here('data/raw', 'NSMP_Stations.csv'), stringsAsFactors = F)
 
 # organize tissue stations
 tsstat <- ts_stat %>%
   select(StationCode, Watershed, Latitude, Longitude) %>% 
-  unique
+  unique %>% 
+  arrange(StationCode)
 
+# import, fix names
+fl <- 'data/raw/Newport tissue data June 2020 update.xlsx'
+renms <- read_excel(here::here(fl), sheet = 'wet wt OCPs') 
+Parameters <- names(renms)
+Parenms <- read_excel(here::here(fl), sheet = 'wet wt OCPs', skip = 1)
+names(renms)[grepl('\\.\\.\\.', names(renms))] <- names(Parenms)[grepl('\\.\\.\\.', names(renms))]
+Parameters <- names(renms)
+names(Parenms) <- Parameters
 
-# import names and fix
-fl <- 'data/raw/Newport tissue.xlsx'
-renms <- read_excel(here::here(fl)) 
-Parameters <- grep('^\\.\\.\\.', names(renms), value = T, invert = T)
-renms <- read_excel(here::here(fl), skip = 1)
-names(renms)[grepl('\\.\\.\\.|^dw\\sbasis$', names(renms))] <- Parameters
-
-# format long, sum by DDT, PCB
-tsdat <- renms %>% 
-  select(-`CH2 ID`) %>% 
+# format long, sum by DDT, PCB, total chlordanes
+tsdat <- Parenms %>% 
+  select(-`CH2 ID`, -`EntrySet`, -`SampleID`, -`Physis ID`) %>% 
   rename(
     StationCode = Station,
     Type = `Bird egg/fillet/composite`
@@ -135,25 +100,22 @@ tsdat <- renms %>%
       grepl('^<', Result) ~ '<', 
       grepl('e$', Result) ~ 'e', 
     ), 
-    Result = gsub('^<|e$|^NR$', '', Result),
+    Result = gsub('^<|e$|^NR$|^2\\.32\\.554$|^0>314', '', Result),
     Result = gsub('ND', '0', Result),
-    Result = as.numeric(Result)#, 
-    # Result = case_when(
-    #   Qualifier == '<' ~ Result / 2,
-    #   T ~ Result
-    # )
+    Result = as.numeric(Result)
   ) %>% 
   mutate(
     Parameter = case_when(
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
       grepl('^PCB', Parameter) ~ 'PCB', 
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
       T ~ Parameter
     )
   ) %>% 
-  # filter(Parameter %in% c('DDT', 'PCB')) %>% 
   group_by(Species, StationCode, Type, Date, Parameter, Qualifier) %>% 
   summarise(Result = sum(Result, na.rm = T)) %>% 
   ungroup %>% 
+  filter(!Species %in% '??') %>% 
   mutate(
     StationCode2 = StationCode,
     StationCode = case_when(
@@ -168,24 +130,14 @@ tsdat <- renms %>%
     ),
     Units = case_when(
       Parameter %in% c('%Lipid', '%Solids') ~ '%', 
-      T ~ 'ng/g dw'
+      Parameter %in% 'Se' ~ 'ug/g dw', 
+      Parameter %in% 'Hg' ~ 'ng/g dw',
+      T ~ 'ng/g ww'
     )
   ) %>% 
   left_join(tsstat, by = 'StationCode') %>% 
   mutate(StationCode = StationCode2) %>% 
   select(-StationCode2)
-
-# get total chlordanes as sum of alpha, gamma, cis, trans
-chlr <- tsdat %>% 
-  filter(Parameter %in% c('Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'trans-Nonachlor')) %>% 
-  mutate(Parameter = 'Total chlordane') %>% 
-  group_by(Species, StationCode, Type, Date, Parameter, Units, Watershed, Latitude, Longitude) %>% 
-  summarise(Result = sum(Result, na.rm = T)) %>% 
-  ungroup %>% 
-  mutate(Qualifier = NA)
-
-tsdat <- tsdat %>% 
-  bind_rows(chlr)
 
 save(tsdat, file = here::here('data', 'tsdat.RData'), compress = 'xz')
 
@@ -199,7 +151,6 @@ thrsdat <- read_csv(here::here('data/raw/thresholds.csv')) %>%
   gather('Parameter', 'Threshold', everything())
 
 save(thrsdat, file = here::here('data/thrsdat.RData'), compress = 'xz')
-
 
 # mass emission thresholds ------------------------------------------------
 
