@@ -15,7 +15,7 @@ This website presents an evaluation of the Orange County tissue sampling dataset
 * __Station differences__: A comparison of time series between stations to identify similarities among trends
 * __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together
 
-Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. For all analyses, multiple congeners for the same constituent were summed to create the total tissue concentration for DDT and PCB.  Also, multiple samples taken during the same day were averaged in many cases. 
+Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. For all analyses, multiple congeners for the same constituent were summed to create the total tissue concentration for DDT, PCB, and Chlordane.  Also, multiple samples taken during the same day were averaged in many cases. 
 
 ```{r setup, message = F, warning = F, results = 'hide', echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, echo = F, fig.path = 'figs/', dev.args = list(family = 'serif'))
@@ -111,7 +111,7 @@ tssel <- tsdat %>%
 
 # tops
 # tops <- c('DDT', 'PCB', 'Se')
-tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Chlordane-alpha', 'Chlordane-gamma', 'cis-Nonachlor', 'DDT', 'PCB', 'Toxaphene', 'trans-Nonachlor')
+tops <- c('%Lipid', '%Solids', 'Total chlordane', 'Se', 'Hg', 'DDT', 'PCB', 'Toxaphene')
 ```
 
 ```{r reactives}
@@ -974,11 +974,11 @@ optdat <- reactive({
   # stations with median value closest to median are given highest weight
   # farther from median, weight decreases
   meddat <- tsdat %>% 
-    filter(Species %in% sppsel) %>% 
-    filter(Type %in% typsel) %>% 
+    filter(Species %in% sppsel) %>%
+    filter(Type %in% typsel) %>%
     filter(Parameter %in% varsel) %>% 
     filter(StationCode %in% dat$sta) %>% 
-    group_by(StationCode) %>% 
+    group_by(StationCode, Species, Type) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
     mutate(
@@ -986,20 +986,24 @@ optdat <- reactive({
       qntdif = abs(qntval - 0.5), 
       qntwgt = 1 - qntdif
     ) %>% 
-    rename(sta = StationCode)
+    rename(
+      sta = StationCode,
+      spp = Species, 
+      typ = Type
+      )
 
   opts <- try({dat %>%
-    group_by(sta) %>%
+    group_by(sta, typ, spp) %>%
     nest %>%
     mutate(
       opt = purrr::map(data, getopt, pow = as.numeric(powsel))
     ) %>%
     dplyr::select(-data) %>%
     unnest(opt) %>%
-    dplyr::select(sta, eff, chg) %>% 
+    dplyr::select(sta, spp, typ, eff, chg) %>% 
     na.omit %>%
     ungroup %>% 
-    left_join(meddat, by = 'sta')
+    left_join(meddat, by = c('sta', 'spp', 'typ'))
   })
   
   validate(
@@ -1045,7 +1049,8 @@ optplo <- reactive({
   optdat <- optdat()
   powsel <- input$powsel
 
-  toplo <- optdat$toplo
+  toplo <- optdat$toplo %>% 
+    unite('statypspp', sta, typ, spp, sep = ', ')
   opts <- optdat$opts
 
   # boxplot
@@ -1061,7 +1066,7 @@ optplo <- reactive({
 
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) + 
+    geom_contour(aes(x = eff, y = chg, z = pow, group = statypspp), breaks = as.numeric(powsel), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
     geom_point(data = opts, aes(x = eff, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_size_continuous(guide = F) + 
@@ -1107,7 +1112,7 @@ optextdat <- reactive({
     filter(Type %in% typsel) %>% 
     filter(Parameter %in% varsel) %>% 
     filter(StationCode %in% dat$sta) %>% 
-    group_by(StationCode) %>% 
+    group_by(StationCode, Species, Type) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
     mutate(
@@ -1115,10 +1120,14 @@ optextdat <- reactive({
       qntdif = abs(qntval - 0.5), 
       qntwgt = 1 - qntdif
     ) %>% 
-    rename(sta = StationCode)
+    rename(
+      sta = StationCode,
+      typ = Type, 
+      spp = Species
+      )
 
   opts <- try({dat %>%
-    group_by(sta) %>%
+    group_by(sta, typ, spp) %>%
     rename(eff = yrs) %>%   
     nest %>%
     mutate(
@@ -1126,11 +1135,12 @@ optextdat <- reactive({
     ) %>%
     dplyr::select(-data) %>%
     unnest(opt) %>%
-    dplyr::select(sta, eff, chg) %>%
+    dplyr::select(sta, spp, typ, eff, chg) %>%
     rename(yrs = eff) %>% 
     na.omit %>%
     ungroup %>% 
-    left_join(meddat, by = 'sta')
+    unite('statypspp', sta, typ, spp, remove = F, sep = ', ') %>%
+    left_join(meddat, by = c('sta', 'typ', 'spp'))
   })
   
   validate(
@@ -1143,7 +1153,8 @@ optextdat <- reactive({
   )
 
   out <- dat %>%
-    filter(sta %in% opts$sta)
+    unite('statypspp', sta, typ, spp, remove = F, sep = ', ') %>% 
+    filter(statypspp %in% opts$statypspp)
 
   out <- list(
     toplo = out,
@@ -1192,9 +1203,9 @@ optextplo <- reactive({
 
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = yrs, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) + 
+    geom_contour(aes(x = yrs, y = chg, z = pow, group = statypspp), breaks = as.numeric(powsel), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = yrs, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = yrs, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    geom_point(data = opts, aes(x = yrs, y = chg, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_size_continuous(guide = F) + 
     scale_x_continuous(limits = c(5, 50)) + 
     thm3 +
@@ -1237,7 +1248,7 @@ optdat2 <- reactive({
     filter(Type %in% typsel) %>% 
     filter(Parameter %in% tops) %>% 
     filter(StationCode %in% dat$sta) %>% 
-    group_by(StationCode, Parameter) %>% 
+    group_by(StationCode, Parameter, Type, Species) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
     group_by(Parameter) %>% 
@@ -1249,13 +1260,15 @@ optdat2 <- reactive({
     ungroup() %>% 
     rename(
       sta = StationCode, 
-      par = Parameter
+      par = Parameter, 
+      typ = Type,
+      spp = Species
       )
   
   opts <- try({tspows %>%
     filter(typ %in% typsel) %>% 
     filter(spp %in% sppsel) %>% 
-    group_by(sta, par) %>%
+    group_by(sta, par, typ, spp) %>%
     nest %>%
     mutate(
       opt = purrr::map(data, getopt, pow = as.numeric(powsel2))
@@ -1264,9 +1277,9 @@ optdat2 <- reactive({
     unnest(opt) %>%
     dplyr::select(-opt) %>%
     na.omit %>%
-    unite('stapar', sta, par, remove = F) %>%
+    unite('stapartypspp', sta, par, typ, spp, remove = F, sep = ', ') %>%
     ungroup %>% 
-    left_join(meddat,by = c('sta', 'par'))
+    left_join(meddat,by = c('sta', 'par', 'typ', 'spp'))
 
   })
   
@@ -1282,10 +1295,10 @@ optdat2 <- reactive({
   validate(
     need('eff' %in% names(opts), 'Insufficient data, try lower power')
   )
-  
+
   out <- tspows %>%
-    unite('stapar', sta, par, remove = F) %>%
-    filter(stapar %in% opts$stapar) %>% 
+    unite('stapartypspp', sta, par, typ, spp, remove = F, sep = ', ') %>%
+    filter(stapartypspp %in% opts$stapartypspp) %>% 
     filter(typ %in% typsel) %>% 
     filter(spp %in% sppsel)
 
@@ -1344,9 +1357,9 @@ optplo2 <- reactive({
   
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) + 
+    geom_contour(aes(x = eff, y = chg, z = pow, group = stapartypspp), breaks = as.numeric(powsel2), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    geom_point(data = opts, aes(x = eff, y = chg, group = stapartypspp, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_x_continuous(limits = c(0.1, 2)) + 
     scale_size_continuous(guide = F) + 
     thm3 +
@@ -1397,7 +1410,7 @@ optextdat2 <- reactive({
     filter(Type %in% typsel) %>% 
     filter(Parameter %in% tops) %>% 
     filter(StationCode %in% dat$sta) %>% 
-    group_by(StationCode, Parameter) %>% 
+    group_by(StationCode, Parameter, Type, Species) %>% 
     summarise(medval = median(Result, na.rm = T)) %>% 
     ungroup %>% 
     group_by(Parameter) %>% 
@@ -1409,13 +1422,15 @@ optextdat2 <- reactive({
     ungroup() %>% 
     rename(
       sta = StationCode, 
-      par = Parameter
+      par = Parameter, 
+      spp = Species, 
+      typ = Type
       )
   
   opts <- try({tsextpows %>%
     filter(typ %in% typsel) %>% 
     filter(spp %in% sppsel) %>% 
-    group_by(sta, par) %>%
+    group_by(sta, par, typ, spp) %>%
     rename(eff = yrs) %>% 
     nest %>%
     mutate(
@@ -1426,9 +1441,9 @@ optextdat2 <- reactive({
     rename(yrs = eff) %>% 
     dplyr::select(-opt) %>%
     na.omit %>%
-    unite('stapar', sta, par, remove = F) %>%
+    unite('stapartypspp', sta, par, typ, spp, remove = F, sep = ', ') %>%
     ungroup %>% 
-    left_join(meddat,by = c('sta', 'par'))
+    left_join(meddat,by = c('sta', 'par', 'typ', 'spp'))
   })
   
   validate(
@@ -1441,11 +1456,9 @@ optextdat2 <- reactive({
   )
 
   out <- tsextpows %>%
-    unite('stapar', sta, par, remove = F) %>%
-    filter(stapar %in% opts$stapar) %>% 
-    filter(typ %in% typsel) %>% 
-    filter(spp %in% sppsel)
-
+    unite('stapartypspp', sta, par, typ, spp, remove = F, sep = ', ') %>%
+    filter(stapartypspp %in% opts$stapartypspp) 
+  
   selopteff <- tsopteffext %>%
     filter(powin %in% powsel2) %>% 
     filter(typ %in% typsel) %>% 
@@ -1501,9 +1514,9 @@ optextplo2 <- reactive({
   
   # contours
   p2 <- ggplot(toplo) +
-    geom_contour(aes(x = yrs, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) + 
+    geom_contour(aes(x = yrs, y = chg, z = pow, group = stapartypspp), breaks = as.numeric(powsel2), size = 0.5) + 
     # geom_text_repel(data = opts, aes(x = yrs, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = yrs, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') + 
+    geom_point(data = opts, aes(x = yrs, y = chg, size = qntwgt, group = stapartypspp), pch = 21, fill = 'lightgrey', colour = 'black') + 
     scale_x_continuous(limits = c(5, 50)) + 
     scale_size_continuous(guide = F) + 
     thm3 +
@@ -1692,6 +1705,7 @@ tomap <- tsdat %>%
   filter(!is.na(Longitude)) %>% 
   group_by(StationCode, Longitude, Latitude) %>% 
   summarise(n = n()) %>% 
+  ungroup() %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
 m2a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma, map.types = mptyps)

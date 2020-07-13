@@ -857,7 +857,8 @@ tomap <- dwdat %>%
   select(StationCode, Parameter, Longitude, Latitude) %>% 
   unique %>% 
   group_by(StationCode, Longitude, Latitude) %>% 
-  summarise(n = n()) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
 m2a <- mapview(tomap, zcol = 'n', layer.name = 'Number of parameters', homebutton = F, col.regions = magma, map.types = mptyps)
@@ -868,6 +869,7 @@ tomap <- dwdat %>%
   unique %>% 
   group_by(StationCode, Longitude, Latitude) %>% 
   summarise(n = n()) %>% 
+  ungroup %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
 m3a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma, map.types = mptyps)

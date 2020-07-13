@@ -638,7 +638,7 @@ mulplo <- reactive({
       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
     )
 
-  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5, coord_fix = F) + 
+  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5, coord_fix = F, parse = F) + 
     scale_fill_viridis_d(guide_legend(ncol = 1)) + 
     geom_point(data = vals, aes(alpha = StationCode), size = 3) +
     scale_alpha_manual(values = c(0.2, 0.8)) + 
@@ -835,6 +835,7 @@ tomap <- lddat %>%
   unique %>% 
   group_by(StationCode, Longitude, Latitude) %>% 
   summarise(n = n()) %>% 
+  ungroup %>% 
   st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj)
 
 m2a <- mapview(tomap, zcol = 'n', layer.name = 'Number of years', homebutton = F, col.regions = magma, map.types = mptyps)
