@@ -68,7 +68,6 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
 # harbors and estuaries ---------------------------------------------------
 
-
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
             "Zn")
 organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
@@ -174,7 +173,18 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
     location = 'sd'
   )
 
-sddat <- bind_rows(wcchem, sedchem)
+# station locations
+sdloc <- read.csv('data/raw/Harbors & Estuaries Station Locations.csv')
+
+sddat <- bind_rows(wcchem, sedchem) %>% 
+  rename(
+    StationCode = Station,
+    Watershed = WaterShed
+    ) %>% 
+  mutate(
+    Watershed = gsub('Harbour$', 'Harbor', Watershed)
+  ) %>% 
+  left_join(sdloc, by = 'StationCode')
 
 save(sddat, file = 'data/sddat.RData', compress = 'xz')
 
