@@ -66,6 +66,118 @@ medat <- me_dat %>%
 
 save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
+# harbors and estuaries ---------------------------------------------------
+
+
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
+            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
+            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
+            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
+            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
+            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
+            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
+            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
+            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
+            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
+            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
+            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
+            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
+            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
+            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
+            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
+            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
+            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
+            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
+            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
+            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
+            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+            "Trichloronate")
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
+
+# water column chem
+wcchem1 <- read.csv('data/raw/Harbors & Estuaries Water Column Chemistry 2010-2015.csv')
+wcchem2 <- read.csv('data/raw/Harbors & Estuaries Water Column Chemistry 2015-2020.csv')
+
+wcchem <- bind_rows(wcchem1, wcchem2) %>% 
+  select(-Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Type, -Sample.Type, -QA.Type, -SampleDepth) %>% 
+  mutate(
+    Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
+    Date = as.Date(Date)
+    ) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed) %>% 
+  summarise(
+    Result = mean(Result, na.rm  = T),
+    Qualifier = unique(Qualifier), 
+    .groups = 'drop'
+  ) %>% 
+  mutate(
+    Parameter = case_when(
+      Parameter == 'AmmoniaN' ~ 'Ammonia', 
+      Parameter == 'TKN' ~ 'Total Kjeldahl Nitrogen',
+      Parameter == 'OrthoPhosphateP' ~ 'Orthophosphate', 
+      Parameter == 'TotalPhosphorusPO4' ~ 'Total Phosphorus', 
+      Parameter == 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite',
+      grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
+      grepl('^PCB', Parameter) ~ 'PCB', 
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
+      T ~ Parameter
+    )
+  ) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier) %>% 
+  summarise(
+    Result = sum(Result, na.rm = T), 
+    .groups = 'drop'
+  ) %>% 
+  group_by(Parameter) %>% 
+  filter(n() > 30) %>% 
+  ungroup %>% 
+  filter(Parameter %in% c(nutrs, metals, organs)) %>% 
+  mutate(
+    location = 'wc'
+  )
+
+# sed chem
+sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.csv') %>% 
+  select(-Entry.Set, -Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Type, -Sample.Type, -QA.Type, -SampleDepth) %>% 
+  mutate(
+    Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
+    Date = as.Date(Date)
+  ) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed) %>% 
+  summarise(
+    Result = mean(Result, na.rm  = T),
+    Qualifier = unique(Qualifier), 
+    .groups = 'drop'
+  ) %>% 
+  mutate(
+    Parameter = case_when(
+      grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
+      grepl('^PCB', Parameter) ~ 'PCB', 
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
+      T ~ Parameter
+    )
+  ) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier) %>% 
+  summarise(
+    Result = sum(Result, na.rm = T), 
+    .groups = 'drop'
+  ) %>% 
+  group_by(Parameter) %>% 
+  filter(n() > 30) %>% 
+  ungroup %>% 
+  filter(Parameter %in% c(nutrs, metals, organs)) %>% 
+  mutate(
+    location = 'sd'
+  )
+
+sddat <- bind_rows(wcchem, sedchem)
+
+save(sddat, file = 'data/sddat.RData', compress = 'xz')
+
 # tissue concentrations ---------------------------------------------------
 
 # station location
