@@ -1483,7 +1483,7 @@ fillCol(reactableOutput('invtab'))
 
 ## Trends and power analyses {.tabset .tabset-pills}
 
-This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type filters which constituents can be selected.  The watershed filters the stations that can be selected.  Finally, the sampling weather selection filters dry weather or wet weather sampling for the selected station/constituent.  Each sub-tab contains additional information about the results.
+This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type filters which constituents can be selected.  The watershed filters the stations that can be selected.  Finally, the sampling location selection filters water column or sediment sampling for the selected station/constituent.  Each sub-tab contains additional information about the results.
 
 ```{r}
 column(12,

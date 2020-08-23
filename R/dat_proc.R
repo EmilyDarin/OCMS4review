@@ -1168,3 +1168,257 @@ tsopteffext <- tsextpows %>%
   rename(yrs = eff)
 
 save(tsopteffext, file = here::here('data', 'tsopteffext.RData'), compress = 'xz')
+
+# harbors and estuaries power analysis for trends -------------------------
+
+data(sddat)
+
+# constituents
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
+            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
+            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
+            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
+            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
+            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
+            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
+            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
+            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
+            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
+            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
+            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
+            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
+            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
+            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
+            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
+            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
+            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
+            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
+            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
+            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
+            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+            "Trichloronate")
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
+
+powdat <- sddat %>% 
+  filter(Parameter %in% c(metals, organs, nutrs))
+
+# data to eval, scns is not created all with crossing to minimize number of combos with no data
+scns <- powdat %>% 
+  select(StationCode, Parameter, location) %>% 
+  unique %>% 
+  rename(
+    sta = StationCode, 
+    par = Parameter, 
+    loc = location
+  ) %>% 
+  crossing(
+    .,
+    chg = seq(0.1, 1, length = 10),
+    eff = seq(0.1, 2,length = 10)
+  )
+
+# setup parallel backend
+ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 15 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  sta <- scns[i, ][['sta']]
+  par <- scns[i, ][['par']]
+  loc <- scns[i, ][['loc']]
+  chg <- scns[i, ][['chg']]
+  eff <- scns[i, ][['eff']]
+  
+  topow <- powdat %>% 
+    filter(StationCode %in% sta) %>% 
+    filter(Parameter %in% par) %>% 
+    filter(location %in% loc) %>% 
+    arrange(Date)
+  
+  simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
+  
+  if(inherits(simdat, 'try-error'))
+    return(NA)
+  
+  out <- try({powfun(simdat)})
+  
+  if(inherits(out, 'try-error'))
+    return(NA)
+  
+  return(out)
+  
+}
+
+# combine results with scns
+sdpows <- scns %>% 
+  mutate(
+    pow = unlist(res)
+  )
+
+save(sdpows, file = here::here('data', 'sdpows.RData'), compress = 'xz')
+
+# harbors and estuaries power analysis for threshold values ---------------
+
+data(sddat)
+
+# constituents
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+            "Zn")
+organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
+            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
+            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
+            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
+            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
+            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
+            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
+            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
+            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
+            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
+            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
+            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
+            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
+            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
+            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
+            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
+            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
+            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
+            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
+            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
+            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
+            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+            "Trichloronate")
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
+
+# data to eval
+scns <- sddat %>% 
+  filter(Parameter %in% c(metals, organs, nutrs)) %>% 
+  mutate(
+    Year = year(Date), 
+    Season = yday(Date),
+    dectime = decimal_date(Date)
+  ) %>% 
+  group_by(StationCode, Parameter, location) %>% 
+  nest
+
+# setup parallel backend
+ncores <- detectCores() - 1 
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+strt <- Sys.time()
+
+# process all stations ~ 4 min
+res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv', 'EnvStats')) %dopar% {
+  
+  sink('log.txt')
+  cat(i, 'of', nrow(scns), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  source("R/funcs.R")
+  
+  dat <- scns[i, 'data'] %>% 
+    .[[1]] %>% 
+    .[[1]]
+  
+  # if no variation return NA
+  if(length(unique(dat$Result)) == 1)
+    return(NA)
+  
+  # model to estimate variance components
+  modin <- try({lm(log(Result) ~ dectime, data = dat)})
+  
+  if(inherits(modin, 'try-error'))
+    return(NA)
+  
+  varres <- resid(modin) %>% sd
+  medval <- median(dat$Result, na.rm = T)
+  
+  topval <- qnorm(0.95, medval, varres)
+  
+  grids <- crossing(
+    vals = seq(medval, topval, length.out = 10), 
+    effs = seq(0.1, 1, length.out = 10), 
+    sims = 1:1000,
+  ) %>% 
+    group_by(vals, effs, sims) %>% 
+    mutate(
+      pow = purrr::pmap(list(vals, effs), function(vals, effs, sims){
+        
+        simeff <- nrow(dat) * effs
+        sims <- rnorm(simeff, medval, varres)
+        # browser()
+        # any(sims > vals)
+        pval <- try(t.test(sims, mu = vals, alternative = 'less')$p.value)
+        # pow <- sum(sims > vals) / length(sims)
+        
+        if(inherits(pval, 'try-error'))
+          return(NA)
+        
+        return(pval)
+        
+      })
+    ) %>% 
+    unnest(pow) %>%
+    group_by(vals, effs) %>% 
+    summarise(pow = mean(pow, na.rm = T))
+  
+  return(grids)
+  
+}
+
+# combine results with scns
+sdthrs <- scns %>% 
+  bind_cols(enframe(res)) %>% 
+  select(-data, -name) %>%   
+  mutate(
+    value = purrr::map(value, function(x){
+      if(is.logical(x))
+        out <- tibble(vals = NA, effs = NA, pow = NA)
+      else 
+        out <- x
+      
+      return(out)
+      
+    })
+  ) %>% 
+  unnest(value)
+
+save(sdthrs, file = here::here('data', 'sdthrs.RData'), compress = 'xz')
+
+# harbors and estuaries optimal effort by station, constituent ------------
+
+source('R/funcs.R')
+
+data(sdpows)
+
+sdopteff <- sdpows %>% 
+  crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
+  group_by(par, sta, loc, powin) %>% 
+  nest %>% 
+  mutate(
+    opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
+  ) %>% 
+  dplyr::select(-data) %>% 
+  unnest(opt) %>% 
+  dplyr::select(-opt) %>% 
+  na.omit %>% 
+  ungroup
+
+save(sdopteff, file = here::here('data', 'sdopteff.RData'), compress = 'xz')
+
