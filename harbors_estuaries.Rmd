@@ -88,6 +88,9 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(sddat)
+data(sdpows)
+data(sdthrs)
+data(sdopteff)
 
 # constituents
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
@@ -329,1078 +332,1033 @@ obsp3 <- reactive({
 
 })
 
-# # trend data
-# trnddat <- reactive({
-# 
-#   # input
-#   stapardat <- stapardat()
-# 
-#   out <- try({stapardat %>%
-#     group_by(Parameter, Year) %>%
-#     summarise(
-#       Result = mean(Result, na.rm = T),
-#     ) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = mean(Result, na.rm = T),
-#       dev = Result - avg
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       avg = round(avg, 2),
-#       Parameter = paste0(Parameter, ' (', avg, ')')
-#     )
-#   })
-# 
-#   return(out)
-# 
-# })
-# 
-# # first trend plot
-# trndp1 <- reactive({
-# 
-#   # input
-#   trnddat <- trnddat()
-#   stasel <- input$stasel
-# 
-#   validate(
-#     need(!inherits(trnddat, 'try-error'), 'Insufficient data')
-#   )
-# 
-#   subttl <- paste0(stasel, ', average in parentheses on y-axis')
-# 
-#   p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
-#     geom_bar(stat = 'identity', colour = 'grey') +
-#     scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(axis.title.y = element_blank()) +
-#     geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
-#     # scale_y_log10() +
-#     # scale_y_continuous('Density (fish/100ft)') +
-#     geom_hline(aes(yintercept = 0)) +
-#     labs(
-#       title = 'Deviation from annual averages by constituent (mg/L)',
-#       subtitle = subttl
-#     ) +
-#     guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
-# 
-#   return(p)
-# 
-# })
-# 
-# # first trend table
-# trndtab1 <- reactive({
-# 
-#   # input
-#   trnddat <- trnddat()
-# 
-#   validate(
-#     need(!inherits(trnddat, 'try-error'), 'Insufficient data')
-#   )
-# 
-#   mods <- trnddat %>%
-#     group_by(Parameter) %>%
-#     nest %>%
-#     mutate(
-#       mod = purrr::map(data, function(x) lm(dev ~ Year, x))
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
-#     )
-# 
-#   out <- stargazer(mods$mod, type = 'html',
-#             covariate.labels = c('Year', 'Intercept'),
-#             column.labels = mods$Parameter,
-#             omit.stat = c('adj.rsq', 'ser'),
-#             column.sep.width = '10pt',
-#             dep.var.labels.include = F,
-#             digits = 2
-#             ) %>%
-#     HTML()
-# 
-#   return(out)
-# 
-# })
-# 
-# # second trend plot
-# trndp2 <- reactive({
-# 
-#   # input
-#   stapardat <- stapardat()
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-# 
-#   win <- 12
-#   toplo <- try({stapardat %>%
-#     select(Date, Parameter, Result) %>%
-#     mutate(Date = floor_date(Date, unit = 'month')) %>%
-#     group_by(Date, Parameter) %>%
-#     summarise(Result = mean(Result, na.rm = T)) %>%
-#     # group_by(Parameter) %>%
-#     arrange(Parameter, Date) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
-#     ) %>%
-#     ungroup %>%
-#     mutate(
-#       dev = Result - avg
-#     )})
-# 
-#   # cut if no data
-#   validate(
-#     need(!inherits(toplo, 'try-error'), 'Insufficient data')
-#   )
-# 
-#   p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(axis.title.y = element_blank()) +
-#     # scale_y_log10() +
-#     labs(
-#       title = paste0('Observed ', varsel),
-#       subtitle = stasel,
-#       ylab = 'Concentration (mg/L)'
-#     )
-# 
-#   p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
-#     geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) +
-#     geom_line(colour = 'black') +
-#     facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
-#     thm1 +
-#     theme(legend.position = 'right') +
-#     # scale_y_log10() +
-#     scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
-#     labs(
-#       title = 'Deviations from annual average',
-#       subtitle = stasel,
-#       ylab = NULL
-#     )
-# 
-#   grid.arrange(
-#     arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
-#   )
-# 
-# })
-# 
-# # second trends table
-# trndtab2 <- reactive({
-# 
-#   # input
-#   stapardat <- stapardat()
-# 
-#   totabs1kn <- stapardat %>%
-#     group_by(Parameter, Year) %>%
-#     summarise(
-#       Result = mean(Result, na.rm = T),
-#     ) %>%
-#     group_by(Parameter) %>%
-#     mutate(
-#       avg = mean(Result, na.rm = T),
-#       dev = Result - avg
-#     ) %>%
-#     nest %>%
-#     mutate(
-#       res = purrr::map(data, function(x){
-# 
-#         knout <- kendallTrendTest(dev ~ Year, x)
-#         outest <- round(knout$estimate, 2)
-#         outpval <- p_ast(knout$p.value)
-#         nval <- nrow(na.omit(x))
-#         out <- c(n = nval, outest, pval = outpval) %>%
-#           data.frame %>%
-#           t %>%
-#           data.frame %>%
-#           select(-intercept)
-#         return(out)
-# 
-#       })
-# 
-#     ) %>%
-#     select(-data) %>%
-#     unnest(res)
-# 
-#   out <- HTML(knitr::kable(totabs1kn, format = 'html') %>%
-#     kable_styling(full_width = T, font_size = 14))
-# 
-#   return(out)
-# 
-# })
-# 
-# # power analysis data
-# powdat <- reactive({
-# 
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   smpsel <- input$smpsel
-# 
-#   req(varsel)
-#   req(stasel)
-# 
-#   out <- medat %>%
-#     filter(StationCode %in% stasel) %>%
-#     filter(Parameter %in% varsel) %>%
-#     filter(Type %in% smpsel) %>%
-#     mutate(
-#       Year = year(Date),
-#       Season = yday(Date),
-#       dectime = decimal_date(Date)
-#     )
-# 
-#   return(out)
-# 
-# })
-# 
-# # first power analysis plot
-# powplo1 <- reactive({
-# 
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   powdat <- powdat()
-# 
-#   p <- ggplot(powdat, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     thm2 +
-#     scale_y_log10() +
-#     labs(
-#       title = 'Observed time series',
-#       subtitle = stasel,
-#       xlab = NULL,
-#       y = paste0(varsel, ' (mg/L)')
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # third power plot
-# powplo3 <- reactive({
-# 
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-#   smpsel <- input$smpsel
-# 
-#   toplo <- pows %>%
-#     filter(sta %in% stasel) %>%
-#     filter(par %in% varsel) %>%
-#     filter(wxt %in% smpsel)
-# 
-#   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
-#     # geom_tile() +
-#     geom_contour(aes(colour = stat(level))) +
-#     scale_colour_viridis_c('Power') +
-#     thm2 +
-#     theme(legend.position = 'none') +
-#     # scale_x_continuous(limits = c(0, 1)) +
-#     # scale_y_continuous(limits = c(0, 1)) +
-#     geom_text_contour() +
-#     labs(
-#       y = paste0('Magnitude of trend change (%) of ', varsel),
-#       title = paste0('Power estimates for ', stasel),
-#       subtitle = 'Lines show power for varying sample effort and trend magnitude',
-#       x = 'Relative sample effort'
-#     )
-# 
-#   p
-# 
-# })
-# 
-# # sixth power plot
-# powplo6 <- reactive({
-# 
-#   # input
-#   stasel <- input$stasel
-#   varsel <- input$varsel
-# 
-#   toplo <- thrs %>%
-#     filter(StationCode %in% stasel) %>%
-#     filter(Parameter %in% varsel)
-# 
-#   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
-#     # geom_tile() +
-#     geom_contour(aes(colour = stat(level))) +
-#     scale_colour_viridis_c('Power') +
-#     thm2 +
-#     theme(legend.position = 'none') +
-#     scale_x_continuous(limits = c(0, 1)) +
-#     # scale_y_continuous(limits = c(0, 1)) +
-#     geom_text_contour() +
-#     labs(
-#       y = paste0('Concentration of ', varsel),
-#       title = paste0('Power estimates for ', stasel),
-#       subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
-#       x = 'Relative sample effort'
-#     )
-# 
-#   p
-# 
-# })
-# 
-# # comparison of time series for stations
-# stapardat2 <- reactive({
-# 
-#   # inputs
-#   stasel2 <- input$stasel2
-#   stasel3 <- input$stasel3
-#   varsel2 <- input$varsel2
-# 
-#   req(varsel2)
-# 
-#   out <- medat %>%
-#     filter(StationCode %in% c(stasel2, stasel3)) %>%
-#     mutate(
-#       Detection = case_when(
-#         Qualifier %in% '<' ~ 'below detection',
-#         T ~ 'within range'
-#       ),
-#       Year = year(Date),
-#       Month = month(Date, label = T),
-#       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
-#     ) %>%
-#     filter(Parameter %in% varsel2)
-# 
-#   return(out)
-# 
-# })
-# 
-# # fourth observed plot
-# obsp4 <- reactive({
-# 
-#   # inputs
-#   stapardat2 <- stapardat2()
-# 
-#   toplo <- stapardat2
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = Date, y = Result)) +
-#     geom_line() +
-#     geom_point(aes(colour = Detection)) +
-#     facet_wrap(~StationCode, ncol = 1) +
-#     thm1 +
-#     # scale_y_log10() +
-#     scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       title = ttl,
-#       y = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # fifth observed plot
-# obsp5 <- reactive({
-# 
-#   # inputs
-#   stapardat2 <- stapardat2()
-# 
-#   toplo <- stapardat2
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) +
-#     geom_boxplot() +
-#     facet_wrap(~StationCode, ncol = 1) +
-#     thm1 +
-#     # scale_y_log10() +
-#     # scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       title = paste(ttl, 'by year'),
-#       y = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # sixth observed plot
-# obsp6 <- reactive({
-# 
-#   # inputs
-#   stapardat2 <- stapardat2()
-# 
-#   toplo <- stapardat2
-#   ttl <- unique(toplo$Parameter)
-# 
-#   p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) +
-#     geom_boxplot() +
-#     facet_wrap(~StationCode, ncol = 1) +
-#     thm1 +
-#     # scale_y_log10() +
-#     # scale_colour_manual(values = c('tomato1', 'black')) +
-#     labs(
-#       title = paste(ttl, 'by month'),
-#       y = 'Concentration (mg/L)'
-#     )
-# 
-#   return(p)
-# 
-# })
-# 
-# # dissimilarity data
-# disdat <- reactive({
-# 
-#   # input
-#   varsel2 <- input$varsel2
-# 
-#   req(varsel2)
-# 
-#   dissim <- meprp %>%
-#     filter(Parameter %in% varsel2) %>%
-#     select(-Watershed, -Parameter) %>%
-#     spread(StationCode, Result) %>%
-#     column_to_rownames('Date') %>%
-#     decostand(method = 'log', na.rm = T) %>%
-#     decostand(method= 'standardize', na.rm = T) %>%
-#     rownames_to_column('Date') %>%
-#     gather('StationCode', 'Result', -Date) %>%
-#     spread(Date, Result) %>%
-#     column_to_rownames('StationCode') %>%
-#     vegdist(method = 'euclidean', na.rm = T) %>%
-#     as.matrix %>%
-#     as.data.frame %>%
-#     rownames_to_column('StationCode') %>%
-#     gather('StationCode2', 'dist', -StationCode) %>%
-#     left_join(siteshd, by = 'StationCode') %>%
-#     arrange(Watershed, dist) %>%
-#     mutate(
-#       Watershed = factor(Watershed, levels = unique(Watershed)),
-#       dist = ifelse(StationCode == StationCode2, NA, dist)
-#     )
-# 
-#   return(dissim)
-# 
-# })
-# 
-# # dissimilarity data, all constituents
-# discondat <- reactive({
-# 
-#   # input
-#   consel3 <- input$consel3
-# 
-#   if(consel3 == 'organs')
-#     sels <- c('GLYP', 'Malathion')
-#   else
-#     sels <- eval(parse(text = consel3))
-# 
-#   dissim <- meprp %>%
-#     filter(Parameter %in% sels) %>%
-#     select(-Watershed) %>%
-#     group_by(Parameter) %>%
-#     nest() %>%
-#     mutate(
-#       dis = purrr::map(data, function(data){
-# 
-#         out <- data %>%
-#           spread(StationCode, Result) %>%
-#           column_to_rownames('Date') %>%
-#           decostand(method = 'log', na.rm = T) %>%
-#           decostand(method= 'standardize', na.rm = T) %>%
-#           rownames_to_column('Date') %>%
-#           gather('StationCode', 'Result', -Date) %>%
-#           spread(Date, Result) %>%
-#           column_to_rownames('StationCode') %>%
-#           vegdist(method = 'euclidean', na.rm = T) %>%
-#           as.matrix %>%
-#           as.data.frame %>%
-#           rownames_to_column('StationCode') %>%
-#           gather('StationCode2', 'dist', -StationCode) %>%
-#           left_join(siteshd, by = 'StationCode') %>%
-#           arrange(Watershed, dist) %>%
-#           mutate(
-#             Watershed = factor(Watershed, levels = unique(Watershed)),
-#             dist = ifelse(StationCode == StationCode2, NA, dist)
-#           )
-# 
-#         return(out)
-# 
-#       })
-#     ) %>%
-#     select(-data) %>%
-#     unnest(dis) %>%
-#     na.omit %>%
-#     group_by(Parameter, StationCode) %>%
-#     summarise(dist = mean(dist, na.rm = T)) %>%
-#     group_by(StationCode) %>%
-#     summarise(dist = mean(dist, na.rm = T))
-# 
-#   return(dissim)
-# 
-# })
-# 
-# # multivariate comparison plots
-# mulplo <- reactive({
-# 
-#   # input
-#   disdat <- disdat()
-#   stasel2 <- input$stasel2
-#   stasel3 <- input$stasel3
-#   varsel2 <- input$varsel2
-#   consel3 <- input$consel3
-# 
-#   req(varsel2)
-# 
-#   ##
-#   # PCA
-# 
-#   if(consel3 == 'organs')
-#     sels <- c('GLYP', 'Malathion')
-#   else
-#     sels <- eval(parse(text = consel3))
-# 
-#   toord <- meprp %>%
-#     filter(Parameter %in% !!sels) %>%
-#     spread(Parameter, Result) %>%
-#     na.omit %>%
-#     unite('rwnm', StationCode, Date) %>%
-#     column_to_rownames('rwnm')
-#   wshd <- toord$Watershed
-#   toord <- toord %>%
-#     select(-Watershed) %>%
-#     decostand(method = 'log', na.rm = T) %>%
-#     decostand(method= 'standardize', na.rm = T) %>%
-#     select(which(!is.na(apply(., 2, var))))
-# 
-#   ord <- toord %>%
-#     prcomp(scale. = T, center = T)
-# 
-#   # station subset
-#   vals <- ord$x %>%
-#     as.data.frame %>%
-#     rownames_to_column() %>%
-#     mutate(StationCode = gsub('^(.*)\\_.*$', '\\1', rowname)) %>%
-#     filter(StationCode %in% c(stasel2, stasel3)) %>%
-#     rename(
-#       one = PC1,
-#       two = PC2
-#     ) %>%
-#     mutate(
-#       StationCode = factor(StationCode, levels = c(stasel2, stasel3))
-#     )
-# 
-#   p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5, coord_fix = F, parse = F) +
-#     scale_fill_viridis_d(guide_legend(ncol = 1)) +
-#     geom_point(data = vals, aes(alpha = StationCode), size = 3) +
-#     scale_alpha_manual(values = c(0.2, 0.8)) +
-#     theme(
-#       legend.position = 'top',
-#       legend.title = element_blank(),
-#       legend.box = 'vertical'
-#       )
-# 
-#   ##
-#   # dissimilarity data and plots
-#   outplo <- disdat %>%
-#     filter(StationCode %in% stasel2) %>%
-#     filter(StationCode2 %in% stasel3)
-# 
-#   # dissimilarity ranges
-#   disrng <- range(disdat$dist, na.rm = T)
-# 
-#   dismid <- disrng[1] + (disrng[2] - disrng[1]) / 2
-#   subttl <- paste0("Dissimilarity between ", stasel2, " and ", stasel3, " ", round(outplo$dist, 1))
-# 
-#   p2 <- ggplot(disdat) +
-#     geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
-#     geom_tile(data = outplo, aes(x = StationCode, y = StationCode2), fill = NA, colour = 'black', size = 2) +
-#     scale_x_discrete('', expand = c(0, 0)) +
-#     scale_y_discrete('', expand = c(0, 0)) +
-#     scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = dismid, limits = disrng) +
-#     guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
-#     labs(
-#       title = varsel2,
-#       subtitle = subttl
-#     ) +
-#     pbase
-# 
-#   p1 + p2 + plot_layout(ncol = 2)
-# 
-# })
-# 
-# # treshold value for constituent
-# varthr <- reactive({
-# 
-#   # input
-#   varsel <- input$varsel
-# 
-#   out <- methrsdat %>%
-#     filter(par %in% varsel) %>%
-#     select(-par)
-# 
-#   return(out)
-# 
-# })
-# 
-# # optimal sample effort data
-# optdat <- reactive({
-# 
-#   # input
-#   varthr <- varthr()
-#   varsel <- input$varsel
-#   powsel <- input$powsel
-#   smpsel <- input$smpsel
-#   shdsel <- input$shdsel
-# 
-#   if(shdsel == 'all')
-#     shdsel <- unique(pows$Watershed)
-# 
-#   dat <- pows %>%
-#     filter(par %in% varsel) %>%
-#     filter(wxt %in% smpsel) %>%
-#     filter(Watershed %in% shdsel)
-# 
-#   # get median values of constituent for each station
-#   # calculate diff from threshold
-#   meddat <- medat %>%
-#     filter(Parameter %in% varsel) %>%
-#     filter(StationCode %in% dat$sta) %>%
-#     group_by(StationCode) %>%
-#     summarise(medval = median(Result, na.rm = T)) %>%
-#     ungroup %>%
-#     rename(sta = StationCode) %>%
-#     left_join(varthr, by = 'sta') %>%
-#     mutate(
-#       thrdif = abs(medval - Threshold),
-#       reldif = (thrdif / Threshold)
-#     )
-# 
-#   opts <- dat %>%
-#     group_by(sta) %>%
-#     nest %>%
-#     mutate(
-#       opt = purrr::map(data, getopt, pow = as.numeric(powsel))
-#     ) %>%
-#     dplyr::select(-data) %>%
-#     unnest(opt) %>%
-#     dplyr::select(sta, eff, chg) %>%
-#     na.omit %>%
-#     ungroup %>%
-#     left_join(meddat, by = 'sta')
-# 
-#   # cut if no data
-#   validate(
-#     need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
-#   )
-# 
-#   out <- dat %>%
-#     filter(sta %in% opts$sta)
-# 
-#   out <- list(
-#     toplo = out,
-#     opts = opts
-#   )
-# 
-#   return(out)
-# 
-# })
-# 
-# # text for optimal plot 1
-# opttxt <- reactive({
-# 
-#   # input
-#   powsel <- input$powsel
-#   smpsel <- input$smpsel
-#   optdat <- optdat()
-# 
-#   smpsel <- case_when(
-#     smpsel == 'D' ~ 'dry',
-#     smpsel == 'S' ~ 'wet'
-#   )
-# 
-#   opts <- optdat$opts
-#   medv <- median(opts$eff, na.rm = T) %>% round(2)
-#   out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel, " power: ", medv)
-# 
-#   return(out)
-# 
-# })
-# 
-# # optimal plot, by constituent
-# optplo <- reactive({
-# 
-#   # inputs
-#   optdat <- optdat()
-#   varthr <- varthr()
-#   powsel <- input$powsel
-# 
-#   # setup text labels in groups for plotly
-#   # sort out size vector for reldif if exists or not
-#   opts <- optdat$opts %>%
-#     mutate(
-#       labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', medval, ', threshold: ', round(Threshold, 2), ', rel. diff: ', round(reldif, 2)
-#                     ),
-#       relsz = case_when(
-#         is.na(reldif) ~ 1,
-#         !is.na(reldif) ~ reldif
-#       )
-#     )
-# 
-#   # boxplot
-#   p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
-#     geom_boxplot() +
-#     scale_y_continuous(limits = c(0.1, 2)) +
-#     coord_flip() +
-#     theme_void() +
-#     theme(
-#       panel.border = element_blank(),
-#       panel.grid = element_blank()
-#     )
-# 
-#   # contour data
-#   toplo <- optdat$toplo
-# 
-#   # contours
-#   p2 <- ggplot(toplo) +
-#     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) +
-#     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-#     geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') +
-#     scale_size_continuous(guide = F, trans = 'reverse', limits = c(NA, 0)) +
-#     scale_x_continuous(limits = c(0.1, 2)) +
-#     thm3 +
-#     labs(
-#       x = 'Relative sample effort',
-#       y = paste0('Magnitude of trend change (%)')
-#     )
-# 
-#   # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
-#   # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
-# 
-#   pout1 <- ggplotly(p1, height = 150, width = 900)
-#   pout2 <- ggplotly(p2, height = 450, width = 900, tooltip = 'group')
-# 
-#   out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
-#   return(out)
-# 
-# })
-# 
-# # optimal sample effort data, all constituents
-# optdat2 <- reactive({
-# 
-#   # input
-#   powsel2 <- input$powsel2
-#   consel2 <- input$consel2
-#   smpsel <- input$smpsel
-#   shdsel <- input$shdsel
-# 
-#   if(shdsel == 'all')
-#     shdsel <- unique(pows$Watershed)
-# 
-#   if(consel2 == 'organs')
-#     sels <- c('GLYP', 'Malathion')
-#   else
-#     sels <- eval(parse(text = consel2))
-# 
-#   # rename methrsdat paramaters for join
-#   thrjn <- methrsdat %>%
-#     rename(
-#       StationCode = sta,
-#       Parameter = par
-#     )
-# 
-#   dat <- pows %>%
-#     filter(par %in% !!sels) %>%
-#     filter(wxt %in% smpsel) %>%
-#     filter(Watershed %in% shdsel)
-# 
-#   # get medians by station, constituent
-#   # estimate relative difference from threshold if available
-#   meddat <- medat %>%
-#     filter(Parameter %in% !!sels) %>%
-#     filter(StationCode %in% dat$sta) %>%
-#     group_by(StationCode, Parameter) %>%
-#     summarise(medval = median(Result, na.rm = T)) %>%
-#     ungroup %>%
-#     left_join(thrjn, by = c('StationCode', 'Parameter')) %>%
-#     mutate(
-#       thrdif = abs(medval - Threshold),
-#       reldif = (thrdif / Threshold)
-#     ) %>%
-#     rename(
-#       sta = StationCode,
-#       par = Parameter
-#       )
-# 
-#   opts <- dat %>%
-#     group_by(sta, par) %>%
-#     nest %>%
-#     mutate(
-#       opt = purrr::map(data, getopt, pow = as.numeric(powsel2))
-#     ) %>%
-#     dplyr::select(-data) %>%
-#     unnest(opt) %>%
-#     dplyr::select(-opt) %>%
-#     na.omit %>%
-#     unite('stapar', sta, par, remove = F) %>%
-#     ungroup %>%
-#     left_join(meddat,by = c('sta', 'par'))
-# 
-#   # cut if no data
-#   validate(
-#     need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
-#   )
-# 
-#   out <- dat %>%
-#     unite('stapar', sta, par, remove = F) %>%
-#     filter(stapar %in% opts$stapar)
-# 
-#   selopteff <- opteff %>%
-#     filter(powin %in% powsel2) %>%
-#     filter(par %in% sels) %>%
-#     filter(wxt %in% smpsel)
-# 
-#   out <- list(
-#     toplo = out,
-#     opts = opts,
-#     selopteff = selopteff
-#   )
-# 
-#   return(out)
-# 
-# })
-# 
-# # text for optimal plot 2
-# opttxt2 <- reactive({
-# 
-#   # input
-#   powsel2 <- input$powsel2
-#   smpsel <- input$smpsel
-#   optdat2 <- optdat2()
-# 
-#   smpsel <- case_when(
-#     smpsel == 'D' ~ 'dry',
-#     smpsel == 'S' ~ 'wet'
-#   )
-# 
-#   opts <- optdat2$opts
-#   medv <- median(opts$eff, na.rm = T) %>% round(2)
-#   out <- paste0("Optimal sample effort in ", smpsel, " weather at ", powsel2, " power: ", medv)
-# 
-#   return(out)
-# 
-# })
-# 
-# # optimal plot, all constituents
-# optplo2 <- reactive({
-# 
-#   # inputs
-#   optdat2 <- optdat2()
-#   powsel2 <- input$powsel2
-# 
-#   toplo <- optdat2$toplo
-#   opts <- optdat2$opts
-#   selopteff <- optdat2$selopteff
-# 
-#   # setup text labels in groups for plotly
-#   # sort out size vector for reldif if exists or not
-#   opts <- opts %>%
-#     mutate(
-#       labs = paste0(sta, ', ', par, ' effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', medval, ', threshold: ', round(Threshold, 2), ', rel. diff: ', round(reldif, 2)
-#                     ),
-#       relsz = case_when(
-#         is.na(reldif) ~ max(.$reldif, na.rm = T),
-#         !is.na(reldif) ~ reldif
-#       )
-#     )
-# 
-#   # boxplot
-#   p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
-#     geom_boxplot() +
-#     scale_y_continuous(limits = c(0.1, 2)) +
-#     coord_flip() +
-#     theme_void() +
-#     theme(
-#       panel.border = element_blank(),
-#       panel.grid = element_blank()
-#     )
-# 
-#   # contours
-#   p2 <- ggplot(toplo) +
-#     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) +
-#     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-#     geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = relsz), pch = 21, fill = 'lightgrey', colour = 'black') +
-#     scale_x_continuous(limits = c(0.1, 2)) +
-#     scale_size_continuous(guide = F, trans = reverselog_trans(10)) +
-#     thm3 +
-#     labs(
-#       x = 'Relative sample effort',
-#       y = paste0('Magnitude of trend change (%)')
-#     )
-# 
-#   # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
-#   # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
-# 
-#   pout1 <- ggplotly(p1)#, height = 150, width = 900)
-#   pout2 <- ggplotly(p2, tooltip = 'group')#, height = 450, width = 900)
-# 
-#   pout3 <- plot_ly() %>%
-#     add_trace(data = selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
-#   layout(
-#     yaxis = list(title = ''),
-#     xaxis = list(title= 'Optimal effort by site'),
-#     showlegend = F
-#     )
-# 
-#   out <- subplot(pout3, pout1, pout2, nrows = 3, heights = c(0.45, 0.1, 0.45), shareX = T, titleY = T)
-#   return(out)
-# 
-# })
-# 
-# # tabular data for optimal effort for grouped constituents
-# opttab2 <- reactive({
-# 
-#   optdat2 <- optdat2()
-# 
-#   totab <- optdat2$opts %>%
-#     select(par, sta, eff, medval, Threshold, thrdif)
-# 
-#   out <- reactable(totab,
-#                    groupBy = 'par',
-#                    columns = list(
-#                      par = colDef(name = 'Constituent'),
-#                      sta = colDef(name = 'Station'),
-#                      eff = colDef(name = 'Optimal effort'),
-#                      medval = colDef(name = 'Median value at station'),
-#                      thrdif = colDef(name = 'Diff. of median from threshold')
-#                    ),
-#                    defaultColDef = colDef(
-#                      footerStyle = list(fontWeight = "bold"),
-#                      format = colFormat(digits = 2, separators = TRUE),
-#                      resizable = TRUE
-#                      )
-#   )
-# 
-#   return(out)
-# 
-# })
-# 
-# # all trends across stations for selected constituent
-# alltrnd <- reactive({
-# 
-#   # input
-#   varsel3 <- input$varsel3
-# 
-#   req(varsel3)
-# 
-#   out <- medat %>%
-#     filter(Parameter %in% varsel3) %>%
-#     mutate(
-#       Year = year(Date),
-#       Month = month(Date, label = T)
-#     ) %>%
-#     group_by(StationCode, Year) %>%
-#     summarise(
-#       Result = mean(Result, na.rm = T),
-#     ) %>%
-#     group_by(StationCode) %>%
-#     # filter(n() == 10) %>%
-#     mutate(
-#       avg = mean(Result, na.rm = T),
-#       dev = Result - avg
-#     ) %>%
-#     nest %>%
-#     mutate(
-#       res = purrr::map(data, function(x){
-# 
-#         nval <- nrow(na.omit(x))
-#         knout <- try(kendallTrendTest(dev ~ Year, x), silent = T)
-#         outpval <- try(p_ast(knout$p.value), silent = T)
-# 
-#         if(!inherits(outpval, 'try-error')){
-# 
-#           outest <- round(knout$estimate, 2)
-#           out <- c(n = nval, outest, pval = outpval) %>%
-#             data.frame %>%
-#             t %>%
-#             data.frame %>%
-#             select(-intercept) %>%
-#             mutate_if(is.factor, function(x) as.character(x))
-# 
-#         }
-# 
-#         if(inherits(outpval, 'try-error')){
-# 
-#           out <- data.frame(n = nval, tau = NA, slope = NA, pval = NA)
-# 
-#         }
-# 
-#         return(out)
-# 
-#       })
-#     ) %>%
-#     select(-data)
-# 
-#   res <- do.call('rbind', out$res)
-#   out <- out %>%
-#     select(-res) %>%
-#     bind_cols(res) %>%
-#     mutate(
-#       trend = ifelse(tau < 0, 'dec', 'inc'),
-#       slope = as.numeric(slope),
-#       n = as.numeric(n),
-#       tau = as.numeric(tau)
-#     ) %>%
-#     ungroup()
-# 
-#   return(out)
-# 
-# })
-# 
-# # table for all trends
-# alltrndtab <- reactive({
-# 
-#   # input
-#   alltrnd <- alltrnd()
-# 
-#   totab <- alltrnd
-# 
-#   HTML(knitr::kable(totab, format = 'html') %>%
-#     kable_styling(full_width = T, font_size = 14))
-# 
-# })
-# 
-# # map for all trends
-# alltrndmap <- reactive({
-# 
-#   # input
-#   alltrnd <- alltrnd()
-# 
-#   locs <- medat %>%
-#     select(StationCode, Longitude, Latitude) %>%
-#     unique
-# 
-#   tomap <- alltrnd %>%
-#     left_join(locs, by = 'StationCode') %>%
-#     na.omit %>%
-#     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
-# 
-#   # point colors
-#   cols <- tomap %>%
-#     mutate(
-#       cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
-#       cols = as.character(cols)
-#     ) %>%
-#     pull(cols)
-# 
-#   # size values
-#   cexv <- tomap %>%
-#     pull(tau) %>%
-#     abs %>%
-#     scales::rescale(to = c(2, 15))
-# 
-#    # hover pt labels
-#   labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
-#   mapviewOptions(leafletHeight = 500)
-# 
-#   out <- mapview(tomap, zcol = 'tau', cex = cexv, label = labs, col.regions = cols, legend = F, map.types = mptyps)@map
-# 
-#   return(out)
-# 
-# })
+# trend data
+trnddat <- reactive({
+
+  # input
+  stapardat <- stapardat()
+
+  out <- try({stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    ungroup %>%
+    mutate(
+      avg = round(avg, 2),
+      Parameter = paste0(Parameter, ' (', avg, ')')
+    )
+  })
+
+  return(out)
+
+})
+
+# first trend plot
+trndp1 <- reactive({
+
+  # input
+  trnddat <- trnddat()
+  stasel <- input$stasel
+
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
+
+  subttl <- paste0(stasel, ', average in parentheses on y-axis')
+
+  p <- ggplot(trnddat, aes(x = Year, y = dev, fill = dev)) +
+    geom_bar(stat = 'identity', colour = 'grey') +
+    scale_fill_gradient2('Deviations from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    theme(axis.title.y = element_blank()) +
+    geom_smooth(method = 'lm', se = F, linetype = 'dashed', color = 'black') +
+    # scale_y_log10() +
+    # scale_y_continuous('Density (fish/100ft)') +
+    geom_hline(aes(yintercept = 0)) +
+    labs(
+      title = 'Deviation from annual averages by constituent (mg/L)',
+      subtitle = subttl
+    ) +
+    guides(fill = guide_colourbar(barwidth = 15, barheight = 0.5))
+
+  return(p)
+
+})
+
+# first trend table
+trndtab1 <- reactive({
+
+  # input
+  trnddat <- trnddat()
+
+  validate(
+    need(!inherits(trnddat, 'try-error'), 'Insufficient data')
+  )
+
+  mods <- trnddat %>%
+    group_by(Parameter) %>%
+    nest %>%
+    mutate(
+      mod = purrr::map(data, function(x) lm(dev ~ Year, x))
+    ) %>%
+    ungroup %>%
+    mutate(
+      Parameter = gsub('\\s\\(.*\\)$', '', Parameter)
+    )
+
+  out <- stargazer(mods$mod, type = 'html',
+            covariate.labels = c('Year', 'Intercept'),
+            column.labels = mods$Parameter,
+            omit.stat = c('adj.rsq', 'ser'),
+            column.sep.width = '10pt',
+            dep.var.labels.include = F,
+            digits = 2
+            ) %>%
+    HTML()
+
+  return(out)
+
+})
+
+# second trend plot
+trndp2 <- reactive({
+
+  # input
+  stapardat <- stapardat()
+  stasel <- input$stasel
+  varsel <- input$varsel
+
+  win <- 12
+  toplo <- try({stapardat %>%
+    select(Date, Parameter, Result) %>%
+    mutate(Date = floor_date(Date, unit = 'month')) %>%
+    group_by(Date, Parameter) %>%
+    summarise(Result = mean(Result, na.rm = T)) %>%
+    # group_by(Parameter) %>%
+    arrange(Parameter, Date) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution'), 
+      avg = as.numeric(avg)
+    ) %>%
+    ungroup %>%
+    mutate(
+      dev = Result - avg
+    )})
+
+  # cut if no data
+  validate(
+    need(!inherits(toplo, 'try-error'), 'Insufficient data')
+  )
+
+  p1 <- ggplot(toplo, aes(x = Date, y = Result)) +
+    geom_line() +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    theme(axis.title.y = element_blank()) +
+    # scale_y_log10() +
+    labs(
+      title = paste0('Observed ', varsel),
+      subtitle = stasel,
+      ylab = 'Concentration (mg/L)'
+    )
+
+  p2 <- ggplot(toplo, aes(x = Date, y = avg)) +
+    geom_segment(aes(x = Date, xend = Date, yend = avg, y = avg + dev, colour = dev), size = 0.8) +
+    geom_line(colour = 'black') +
+    facet_wrap(~Parameter, strip.position = 'left', ncol = 1, scales = 'free_y') +
+    thm1 +
+    theme(legend.position = 'right') +
+    # scale_y_log10() +
+    scale_colour_gradient2('Devation from average (+/-)', low = 'tomato1', mid = 'grey90', high = 'lightgreen', midpoint = 0) +
+    labs(
+      title = 'Deviations from annual average',
+      subtitle = stasel,
+      ylab = NULL
+    )
+
+  grid.arrange(
+    arrangeGrob(p1, p2, ncol = 2, widths = c(0.8,1))
+  )
+
+})
+
+# second trends table
+trndtab2 <- reactive({
+
+  # input
+  stapardat <- stapardat()
+
+  totabs1kn <- stapardat %>%
+    group_by(Parameter, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(Parameter) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    nest %>%
+    mutate(
+      res = purrr::map(data, function(x){
+
+        knout <- kendallTrendTest(dev ~ Year, x)
+        outest <- round(knout$estimate, 2)
+        outpval <- p_ast(knout$p.value)
+        nval <- nrow(na.omit(x))
+        out <- c(n = nval, outest, pval = outpval) %>%
+          data.frame %>%
+          t %>%
+          data.frame %>%
+          select(-intercept)
+        return(out)
+
+      })
+
+    ) %>%
+    select(-data) %>%
+    unnest(res)
+
+  out <- HTML(knitr::kable(totabs1kn, format = 'html') %>%
+    kable_styling(full_width = T, font_size = 14))
+
+  return(out)
+
+})
+
+# power analysis data
+powdat <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+  locsel2 <- input$locsel2
+
+  req(varsel)
+  req(stasel)
+
+  out <- sddat %>%
+    filter(StationCode %in% stasel) %>%
+    filter(Parameter %in% varsel) %>%
+    filter(location %in% locsel2) %>%
+    mutate(
+      Year = year(Date),
+      Season = yday(Date),
+      dectime = decimal_date(Date)
+    )
+
+  return(out)
+
+})
+
+# first power analysis plot
+powplo1 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+  powdat <- powdat()
+
+  p <- ggplot(powdat, aes(x = Date, y = Result)) +
+    geom_line() +
+    thm2 +
+    scale_y_log10() +
+    labs(
+      title = 'Observed time series',
+      subtitle = stasel,
+      xlab = NULL,
+      y = paste0(varsel, ' (mg/L)')
+    )
+
+  return(p)
+
+})
+
+# third power plot
+powplo3 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+  locsel2 <- input$locsel2
+
+  toplo <- sdpows %>%
+    filter(sta %in% stasel) %>%
+    filter(par %in% varsel) %>%
+    filter(loc %in% locsel2)
+
+  p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
+    # geom_tile() +
+    geom_contour(aes(colour = stat(level))) +
+    scale_colour_viridis_c('Power') +
+    thm2 +
+    theme(legend.position = 'none') +
+    # scale_x_continuous(limits = c(0, 1)) +
+    # scale_y_continuous(limits = c(0, 1)) +
+    geom_text_contour() +
+    labs(
+      y = paste0('Magnitude of trend change (%) of ', varsel),
+      title = paste0('Power estimates for ', stasel),
+      subtitle = 'Lines show power for varying sample effort and trend magnitude',
+      x = 'Relative sample effort'
+    )
+
+  p
+
+})
+
+# sixth power plot
+powplo6 <- reactive({
+
+  # input
+  stasel <- input$stasel
+  varsel <- input$varsel
+  locsel2 <- input$locsel2
+
+  toplo <- sdthrs %>%
+    filter(StationCode %in% stasel) %>%
+    filter(Parameter %in% varsel) %>% 
+    filter(location %in% locsel2)
+
+  p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
+    # geom_tile() +
+    geom_contour(aes(colour = stat(level))) +
+    scale_colour_viridis_c('Power') +
+    thm2 +
+    theme(legend.position = 'none') +
+    scale_x_continuous(limits = c(0, 1)) +
+    # scale_y_continuous(limits = c(0, 1)) +
+    geom_text_contour() +
+    labs(
+      y = paste0('Concentration of ', varsel),
+      title = paste0('Power estimates for ', stasel),
+      subtitle = 'Lines show the likelihood that the true mean for the sample is above the threshold',
+      x = 'Relative sample effort'
+    )
+
+  p
+
+})
+
+# comparison of time series for stations
+stapardat2 <- reactive({
+
+  # inputs
+  locsel3 <- input$locsel3
+  stasel2 <- input$stasel2
+  stasel3 <- input$stasel3
+  varsel3 <- input$varsel3
+
+  req(varsel3)
+
+  validate(
+    need(stasel2 != stasel3, 'Do not select the same station')
+  )
+  
+  out <- sddat %>%
+    filter(location %in% locsel3) %>% 
+    filter(StationCode %in% c(stasel2, stasel3)) %>%
+    mutate(
+      Detection = case_when(
+        Qualifier %in% '<' ~ 'below detection',
+        T ~ 'within range'
+      ),
+      Year = year(Date),
+      Month = month(Date, label = T),
+      StationCode = factor(StationCode, levels = c(stasel2, stasel3))
+    ) %>%
+    filter(Parameter %in% varsel3)
+
+  return(out)
+
+})
+
+# fourth observed plot
+obsp4 <- reactive({
+
+  # inputs
+  stapardat2 <- stapardat2()
+
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+  ylab <- paste0('Concentration (', unique(toplo$Units), ')')
+  
+  p <- ggplot(toplo, aes(x = Date, y = Result)) +
+    geom_line() +
+    geom_point(aes(colour = Detection)) +
+    facet_wrap(~StationCode, ncol = 1) +
+    thm1 +
+    # scale_y_log10() +
+    scale_colour_manual(values = c('tomato1', 'black')) +
+    labs(
+      title = ttl,
+      y = ylab
+    )
+
+  return(p)
+
+})
+
+# fifth observed plot
+obsp5 <- reactive({
+
+  # inputs
+  stapardat2 <- stapardat2()
+
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+  ylab <- paste0('Concentration (', unique(toplo$Units), ')')
+
+  p <- ggplot(toplo, aes(x = factor(Year), y = Result, group = Year)) +
+    geom_boxplot() +
+    facet_wrap(~StationCode, ncol = 1) +
+    thm1 +
+    # scale_y_log10() +
+    # scale_colour_manual(values = c('tomato1', 'black')) +
+    labs(
+      title = paste(ttl, 'by year'),
+      y = ylab
+    )
+
+  return(p)
+
+})
+
+# sixth observed plot
+obsp6 <- reactive({
+
+  # inputs
+  stapardat2 <- stapardat2()
+
+  toplo <- stapardat2
+  ttl <- unique(toplo$Parameter)
+  ylab <- paste0('Concentration (', unique(toplo$Units), ')')
+
+  p <- ggplot(toplo, aes(x = Month, y = Result, group = Month)) +
+    geom_boxplot() +
+    facet_wrap(~StationCode, ncol = 1) +
+    thm1 +
+    # scale_y_log10() +
+    # scale_colour_manual(values = c('tomato1', 'black')) +
+    labs(
+      title = paste(ttl, 'by month'),
+      y = ylab
+    )
+
+  return(p)
+
+})
+
+# dissimilarity data
+disdat <- reactive({
+
+  # input
+  varsel3 <- input$varsel3
+  locsel3 <- input$locsel3
+  shdsel2 <- input$shdsel2
+
+  req(varsel3)
+
+  if(shdsel2 == 'all')
+    shdsel2 <- unique(sdprp$Watershed)
+
+  dissim <- sdprp %>%
+    filter(location %in% locsel3) %>% 
+    filter(Watershed %in% shdsel2) %>% 
+    filter(Parameter %in% varsel3) %>%
+    select(-Watershed, -location, -Parameter) %>%
+    spread(StationCode, Result) %>%
+    column_to_rownames('Date') %>%
+    decostand(method = 'log', na.rm = T) %>%
+    decostand(method= 'standardize', na.rm = T) %>%
+    rownames_to_column('Date') %>%
+    gather('StationCode', 'Result', -Date) %>%
+    spread(Date, Result) %>%
+    column_to_rownames('StationCode') %>%
+    vegdist(method = 'euclidean', na.rm = T) %>%
+    as.matrix %>%
+    as.data.frame %>%
+    rownames_to_column('StationCode') %>%
+    gather('StationCode2', 'dist', -StationCode) %>%
+    left_join(siteshd, by = 'StationCode') %>%
+    arrange(Watershed, dist) %>%
+    mutate(
+      Watershed = factor(Watershed, levels = unique(Watershed)),
+      dist = ifelse(StationCode == StationCode2, NA, dist)
+    )
+  
+  validate(
+    need(nrow(na.omit(dissim)) > 0, 'Insufficient data')
+  )
+
+  return(dissim)
+
+})
+
+# multivariate comparison plots
+mulplo <- reactive({
+
+  # input
+  disdat <- disdat()
+  stasel2 <- input$stasel2
+  stasel3 <- input$stasel3
+  varsel3 <- input$varsel3
+  consel3 <- input$consel3
+  locsel3 <- input$locsel3
+  shdsel2 <- input$shdsel2
+
+  req(varsel3)
+
+  if(shdsel2 == 'all')
+    shdsel2 <- unique(sdprp$Watershed)
+    
+  ##
+  # PCA
+
+  toord <- sdprp %>%
+    filter(Watershed %in% shdsel2) %>% 
+    filter(location %in% locsel3) %>% 
+    filter(Parameter %in% get(consel3)) %>%
+    select(-location) %>% 
+    spread(Parameter, Result) %>%
+    na.omit %>%
+    unite('rwnm', StationCode, Date) %>%
+    column_to_rownames('rwnm')
+  wshd <- toord$Watershed
+  toord <- toord %>%
+    select(-Watershed) %>%
+    decostand(method = 'log', na.rm = T) %>%
+    decostand(method= 'standardize', na.rm = T) %>%
+    select(which(!is.na(apply(., 2, var))))
+
+  ord <- toord %>%
+    prcomp(scale. = T, center = T)
+
+  # station subset
+  vals <- ord$x %>%
+    as.data.frame %>%
+    rownames_to_column() %>%
+    mutate(StationCode = gsub('^(.*)\\_.*$', '\\1', rowname)) %>%
+    filter(StationCode %in% c(stasel2, stasel3)) %>%
+    rename(
+      one = PC1,
+      two = PC2
+    ) %>%
+    mutate(
+      StationCode = factor(StationCode, levels = c(stasel2, stasel3))
+    )
+  
+  p1 <- ggord(ord, size = 1, grp_in = wshd, alpha = 0.4, vec_ext = 5, coord_fix = F, parse = F) +
+    scale_fill_viridis_d(guide_legend(ncol = 1)) +
+    scale_color_viridis_d() + 
+    geom_point(data = vals, aes(alpha = StationCode), size = 3) +
+    scale_alpha_manual(values = c(0.2, 0.8)) +
+    theme(
+      legend.position = 'top',
+      legend.title = element_blank(),
+      legend.box = 'vertical'
+      )
+
+  ##
+  # dissimilarity data and plots
+  outplo <- disdat %>%
+    filter(StationCode %in% stasel2) %>%
+    filter(StationCode2 %in% stasel3)
+
+  # dissimilarity ranges
+  disrng <- range(disdat$dist, na.rm = T)
+
+  dismid <- disrng[1] + (disrng[2] - disrng[1]) / 2
+  subttl <- paste0("Dissimilarity between ", stasel2, " and ", stasel3, " ", round(outplo$dist, 1))
+
+  p2 <- ggplot(disdat) +
+    geom_tile(aes(x = StationCode, y = StationCode2, fill = dist), colour = 'black') +
+    geom_tile(data = outplo, aes(x = StationCode, y = StationCode2), fill = NA, colour = 'black', size = 2) +
+    scale_x_discrete('', expand = c(0, 0)) +
+    scale_y_discrete('', expand = c(0, 0)) +
+    scale_fill_gradient2('Dissimilarity between stations', low = 'lightblue', mid = 'white', high = 'tomato1', midpoint = dismid, limits = disrng) +
+    guides(fill = guide_colourbar(barheight = 0.5, barwidth = 10, label.theme = element_text(size = 11, angle = 0))) +
+    labs(
+      title = varsel3,
+      subtitle = subttl
+    ) +
+    pbase
+
+  p1 + p2 + plot_layout(ncol = 2)
+
+})
+
+# optimal sample effort data
+optdat <- reactive({
+
+  # input
+  varsel <- input$varsel
+  powsel <- input$powsel
+  shdsel <- input$shdsel
+  consel2 <- input$consel2
+  locsel2 <- input$locsel2
+  
+  if(shdsel == 'all')
+    shdsel <- unique(sddat$Watershed)
+  
+  stasels <- sddat %>%
+    filter(Watershed %in% shdsel) %>%
+    pull(StationCode) %>%
+    unique
+  
+  dat <- sdpows %>%
+    filter(par %in% varsel) %>%
+    filter(loc %in% locsel2) %>% 
+    filter(sta %in% stasels)
+
+  # get median values of constituent for each station
+  # calculate diff from threshold
+  meddat <- sddat %>%
+    filter(Parameter %in% varsel) %>%
+    filter(StationCode %in% dat$sta) %>%
+    group_by(StationCode) %>%
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>% 
+    rename(
+      sta = StationCode
+      )
+
+  opts <- dat %>%
+    group_by(sta) %>%
+    nest %>%
+    mutate(
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel))
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(opt) %>%
+    dplyr::select(sta, eff, chg) %>%
+    na.omit %>%
+    ungroup %>%
+    left_join(meddat, by = 'sta')
+
+  # cut if no data
+  validate(
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
+  )
+
+  out <- dat %>%
+    filter(sta %in% opts$sta)
+
+  out <- list(
+    toplo = out,
+    opts = opts
+  )
+
+  return(out)
+
+})
+
+# text for optimal plot 1
+opttxt <- reactive({
+
+  # input
+  powsel <- input$powsel
+  locsel2 <- input$locsel2
+  optdat <- optdat()
+
+  locsel2 <- case_when(
+    locsel2 == 'sd' ~ 'sediment',
+    locsel2 == 'wc' ~ 'water column'
+  )
+
+  opts <- optdat$opts
+  medv <- median(opts$eff, na.rm = T) %>% round(2)
+  out <- paste0("Optimal sample effort in ", locsel2, " at ", powsel, " power: ", medv)
+
+  return(out)
+
+})
+
+# optimal plot, by constituent
+optplo <- reactive({
+
+  # inputs
+  optdat <- optdat()
+  powsel <- input$powsel
+
+  opts <- optdat$opts 
+  
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
+    geom_boxplot() +
+    scale_y_continuous(limits = c(0.1, 2)) +
+    coord_flip() +
+    theme_void() +
+    theme(
+      panel.border = element_blank(),
+      panel.grid = element_blank()
+    )
+
+  # contour data
+  toplo <- optdat$toplo
+
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) +
+    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') +
+    scale_size_continuous(guide = F, trans = 'reverse', limits = c(NA, 0)) +
+    scale_x_continuous(limits = c(0.1, 2)) +
+    thm3 +
+    labs(
+      x = 'Relative sample effort',
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+
+  pout1 <- ggplotly(p1, height = 150, width = 900)
+  pout2 <- ggplotly(p2, height = 450, width = 900, tooltip = 'group')
+
+  out <- subplot(pout1, pout2, nrows = 2, heights = c(0.1, 0.9), shareX = T, titleY = T)
+  return(out)
+
+})
+
+# optimal sample effort data, all constituents
+optdat2 <- reactive({
+
+  # input
+  consel2 <- input$consel2
+  powsel2 <- input$powsel2
+  locsel2 <- input$locsel2
+  shdsel <- input$shdsel
+
+  if(shdsel == 'all')
+    shdsel <- unique(sddat$Watershed)
+
+  stasels <- sddat %>%
+    filter(Watershed %in% shdsel) %>%
+    pull(StationCode) %>%
+    unique
+  
+  dat <- sdpows %>% 
+    filter(par %in% get(consel2)) %>% 
+    filter(loc %in% locsel2) %>% 
+    filter(sta %in% stasels)
+
+  # get weighting for optimal value
+  # stations with median value closest to median are given highest weight
+  # farther from median, weight decreases
+  meddat <- sddat %>% 
+    filter(Parameter %in% get(consel2)) %>% 
+    filter(StationCode %in% dat$sta) %>% 
+    group_by(StationCode, Parameter) %>% 
+    summarise(medval = median(Result, na.rm = T)) %>% 
+    ungroup %>% 
+    group_by(Parameter) %>% 
+    mutate(
+      qntval = ecdf(medval)(medval), 
+      qntdif = abs(qntval - 0.5), 
+      qntwgt = 1 - qntdif
+    ) %>%
+    ungroup() %>% 
+    rename(
+      sta = StationCode, 
+      par = Parameter
+      )
+  
+  opts <- try({sdpows %>%
+    filter(par %in% get(consel2)) %>% 
+    filter(sta %in% dat$sta) %>% 
+    filter(loc %in% locsel2) %>% 
+    group_by(sta, par) %>%
+    nest %>%
+    mutate(
+      opt = purrr::map(data, getopt, pow = as.numeric(powsel2))
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(opt) %>%
+    dplyr::select(-opt) %>%
+    na.omit %>%
+    unite('stapar', sta, par, remove = F, sep = ', ') %>%
+    ungroup %>% 
+    left_join(meddat,by = c('sta', 'par'))
+
+  })
+  
+  validate(
+    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power')
+  )
+  
+  # cut if no data
+  validate(
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data, try lower power')
+  )
+
+  validate(
+    need('eff' %in% names(opts), 'Insufficient data, try lower power')
+  )
+
+  out <- sdpows %>%
+    unite('stapar', sta, par, remove = F, sep = ', ') %>%
+    filter(stapar %in% opts$stapar) %>% 
+    filter(loc %in% locsel2) %>% 
+    filter(par %in% get(consel2))
+
+  selopteff <- sdopteff %>%
+    filter(powin %in% powsel2) %>% 
+    filter(loc %in% locsel2) %>% 
+    filter(par %in% get(consel2)) %>% 
+    filter(sta %in% dat$sta)
+  
+  out <- list(
+    toplo = out,
+    opts = opts,
+    selopteff = selopteff
+  )
+
+  return(out)
+
+})
+
+# text for optimal plot 2
+opttxt2 <- reactive({
+
+  # input
+  powsel2 <- input$powsel2
+  locsel2 <- input$locsel2
+  optdat2 <- optdat2()
+
+  locsel2 <- case_when(
+    locsel2 == 'sd' ~ 'sediment',
+    locsel2 == 'wc' ~ 'water column'
+  )
+
+  opts <- optdat2$opts
+  medv <- median(opts$eff, na.rm = T) %>% round(2)
+  out <- paste0("Optimal sample effort in ", locsel2, " at ", powsel2, " power: ", medv)
+
+  return(out)
+
+})
+
+# optimal plot, all constituents
+optplo2 <- reactive({
+
+  # inputs
+  optdat2 <- optdat2()
+  powsel2 <- input$powsel2
+
+  toplo <- optdat2$toplo
+  opts <- optdat2$opts
+  selopteff <- optdat2$selopteff
+
+  # boxplot
+  p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
+    geom_boxplot() +
+    scale_y_continuous(limits = c(0.1, 2)) +
+    coord_flip() +
+    theme_void() +
+    theme(
+      panel.border = element_blank(),
+      panel.grid = element_blank()
+    )
+
+  # contours
+  p2 <- ggplot(toplo) +
+    geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) +
+    # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') +
+    scale_x_continuous(limits = c(0.1, 2)) +
+    scale_size_continuous(guide = F, trans = reverselog_trans(10)) +
+    thm3 +
+    labs(
+      x = 'Relative sample effort',
+      y = paste0('Magnitude of trend change (%)')
+    )
+
+  # out <- p1 + p2 + plot_layout(ncol = 1, heights = c(0.1, 1))
+  # pout <- ggMarginal(p1, type = 'boxplot', margins = 'x')
+
+  pout1 <- ggplotly(p1)#, height = 150, width = 900)
+  pout2 <- ggplotly(p2, tooltip = 'group')#, height = 450, width = 900)
+
+  pout3 <- plot_ly() %>%
+    add_trace(data = selopteff, y = ~par, x = ~eff, type = 'box', text = ~sta, boxpoints = 'all', jitter = 0.3, pointpos= 0, orientation = 'h') %>%
+  layout(
+    yaxis = list(title = ''),
+    xaxis = list(title= 'Optimal effort by site'),
+    showlegend = F
+    )
+
+  out <- subplot(pout3, pout1, pout2, nrows = 3, heights = c(0.45, 0.1, 0.45), shareX = T, titleY = T)
+  return(out)
+
+})
+
+# tabular data for optimal effort for grouped constituents
+opttab2 <- reactive({
+
+  optdat2 <- optdat2()
+
+  totab <- optdat2$opts %>%
+    select(par, sta, eff, medval, qntval)
+
+  out <- reactable(totab,
+                   groupBy = 'par',
+                   columns = list(
+                     par = colDef(name = 'Constituent'),
+                     sta = colDef(name = 'Station'),
+                     eff = colDef(name = 'Optimal effort'),
+                     medval = colDef(name = 'Median value at station'),
+                     qntval = colDef(name = 'Quantile of median value')
+                   ),
+                   defaultColDef = colDef(
+                     footerStyle = list(fontWeight = "bold"),
+                     format = colFormat(digits = 2, separators = TRUE),
+                     resizable = TRUE
+                     )
+  )
+
+  return(out)
+
+})
+
+# all trends across stations for selected constituent
+alltrnd <- reactive({
+
+  # input
+  varsel4 <- input$varsel4
+  locsel4 <- input$locsel4
+
+  req(varsel4)
+
+  out <- sddat %>%
+    filter(Parameter %in% varsel4) %>%
+    filter(location %in% locsel4) %>% 
+    mutate(
+      Year = year(Date),
+      Month = month(Date, label = T)
+    ) %>%
+    group_by(StationCode, Year) %>%
+    summarise(
+      Result = mean(Result, na.rm = T),
+    ) %>%
+    group_by(StationCode) %>%
+    # filter(n() == 10) %>%
+    mutate(
+      avg = mean(Result, na.rm = T),
+      dev = Result - avg
+    ) %>%
+    nest %>%
+    mutate(
+      res = purrr::map(data, function(x){
+
+        nval <- nrow(na.omit(x))
+        knout <- try(kendallTrendTest(dev ~ Year, x), silent = T)
+        outpval <- try(p_ast(knout$p.value), silent = T)
+
+        if(!inherits(outpval, 'try-error')){
+
+          outest <- round(knout$estimate, 2)
+          out <- c(n = nval, outest, pval = outpval) %>%
+            data.frame %>%
+            t %>%
+            data.frame %>%
+            select(-intercept) %>%
+            mutate_if(is.factor, function(x) as.character(x))
+
+        }
+
+        if(inherits(outpval, 'try-error')){
+
+          out <- data.frame(n = nval, tau = NA, slope = NA, pval = NA)
+
+        }
+
+        return(out)
+
+      })
+    ) %>%
+    select(-data)
+
+  res <- do.call('rbind', out$res)
+  out <- out %>%
+    select(-res) %>%
+    bind_cols(res) %>%
+    mutate(
+      trend = ifelse(tau < 0, 'dec', 'inc'),
+      slope = as.numeric(slope),
+      n = as.numeric(n),
+      tau = as.numeric(tau)
+    ) %>%
+    ungroup()
+
+  return(out)
+
+})
+
+# table for all trends
+alltrndtab <- reactive({
+
+  # input
+  alltrnd <- alltrnd()
+
+  totab <- alltrnd
+
+  HTML(knitr::kable(totab, format = 'html') %>%
+    kable_styling(full_width = T, font_size = 14))
+
+})
+
+# map for all trends
+alltrndmap <- reactive({
+
+  # input
+  alltrnd <- alltrnd()
+
+  locs <- sddat %>%
+    select(StationCode, Longitude, Latitude) %>%
+    unique
+
+  tomap <- alltrnd %>%
+    left_join(locs, by = 'StationCode') %>%
+    na.omit %>%
+    st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
+
+  # point colors
+  cols <- tomap %>%
+    mutate(
+      cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
+      cols = as.character(cols)
+    ) %>%
+    pull(cols)
+
+  # size values
+  cexv <- tomap %>%
+    pull(tau) %>%
+    abs %>%
+    scales::rescale(to = c(2, 15))
+
+   # hover pt labels
+  labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
+  mapviewOptions(leafletHeight = 500)
+
+  out <- mapview(tomap, zcol = 'tau', cex = cexv, label = labs, col.regions = cols, legend = F, map.types = mptyps)@map
+
+  return(out)
+
+})
 ```
 
 This website presents an evaluation of the Orange County harbors and estuaries monitoring dataset. The content is separated into four main tabs.
@@ -1409,7 +1367,7 @@ This website presents an evaluation of the Orange County harbors and estuaries m
 * __Trends and power analyses__: Changes over time by select constituents and locations, including power analyses to help identify optimal sampling effort
 
 <!-- * __Station differences__: A comparison of time series between stations to identify similarities among trends -->
-<!-- * __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together -->
+* __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together
 
 Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. Most analyses are also grouped by constituent type as nutrients, metals, or organics.  The following shows which constituents are included in each type.
 
@@ -1493,7 +1451,6 @@ column(12,
   column(6,
        selectInput('shdsel', 'Select watershed:', choices = c('all', unique(sddat$Watershed)))
       )
-
 )
 
 column(12,
@@ -1547,7 +1504,7 @@ column(12,
 
 ### Observed
 
-These plots show the observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)`. The top plot is the raw data, the middle plot shows boxplots of the raw data grouped by year, and the bottom plot shows boxplots of the raw data grouped by month.  Points in red in the top plot are those that were at or below the detection limit for the constituent.
+These plots show the observed time series for `r renderText(input$varsel)` at `r renderText(input$stasel)` sampled in the `r renderText(tolower(names(lxs[which(unlist(lxs) == input$locsel2)])))`. The top plot is the raw data, the middle plot shows boxplots of the raw data grouped by year, and the bottom plot shows boxplots of the raw data grouped by month.  Points in red in the top plot are those that were at or below the detection limit for the constituent.
 
 ```{r}
 renderPlot({obsp1()}, height = 350, width = 700)
@@ -1555,238 +1512,284 @@ renderPlot({obsp2()}, height = 300, width = 700)
 renderPlot({obsp3()}, height = 300, width = 700)
 ```
 
-<!-- ### Trends -->
+### Trends
 
-<!-- This sub-tab shows the annual trends for `r renderText(input$varsel)` at `r renderText(input$stasel)` during `r renderText(names(wx[which(unlist(wx) == input$smpsel)]))` sampling.  The top plot shows trends for the time series after removing the overall mean. This is an effective approach for trend analysis by evaluating deviation of the annual averages relative to the grand mean. Bars in green show annual averages greater than the grand mean and bars in red show annual averages less than the grand mean.  The bars are centered on the zero line, which is a reference for the grand mean. The y-axis reports the grand mean of the constituent in parentheses. The trend is shown as the dotted line for a regression of the annual averages over time.   -->
+This sub-tab shows the annual trends for `r renderText(input$varsel)` at `r renderText(input$stasel)` sampled in the `r renderText(tolower(names(lxs[which(unlist(lxs) == input$locsel2)])))`.  The top plot shows trends for the time series after removing the overall mean. This is an effective approach for trend analysis by evaluating deviation of the annual averages relative to the grand mean. Bars in green show annual averages greater than the grand mean and bars in red show annual averages less than the grand mean.  The bars are centered on the zero line, which is a reference for the grand mean. The y-axis reports the grand mean of the constituent in parentheses. The trend is shown as the dotted line for a regression of the annual averages over time.
 
-<!-- ```{r} -->
-<!-- renderPlot({trndp1()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({trndp1()}, height = 350, width = 900)
+```
 
-<!-- This table shows the regression results from the above plot.  Parameter estimates (Year and Intercept) are shown with their standard errors in parentheses.   -->
+This table shows the regression results from the above plot.  Parameter estimates (Year and Intercept) are shown with their standard errors in parentheses.
 
-<!-- ```{r, results='asis'} -->
-<!-- renderUI({trndtab1()}) -->
-<!-- ``` -->
+```{r, results='asis'}
+renderUI({trndtab1()})
+```
 
-<!-- <br> -->
+<br>
 
-<!-- The plots below show the observed time series with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right). The right plot is an alternative visualization for deviations around the long-term trend. -->
+The plots below show the observed time series with measurements averaged to year/month (left) and a moving window average for a 12 month period with deviations around the average (right). The right plot is an alternative visualization for deviations around the long-term trend.
 
-<!-- ```{r} -->
-<!-- renderPlot({trndp2()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({trndp2()}, height = 350, width = 900)
+```
 
-<!-- <br> -->
+<br>
 
-<!-- Finally, Kendall tests provide an alternative indication of trend by evaluating magnitude, direction, and significance of a change over time. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test. -->
+Finally, Kendall tests provide an alternative indication of trend by evaluating magnitude, direction, and significance of a change over time. The test is a non-parametric equivalent to the regression analysis above. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
 
-<!-- ```{r, results = 'asis'} -->
-<!-- renderUI({trndtab2()}) -->
-<!-- ``` -->
+```{r, results = 'asis'}
+renderUI({trndtab2()})
+```
 
-<!-- ### Power analyses -->
+### Power analyses
 
-<!-- This sub-tab shows the results for two different power analyses. Power is described as the likelihood of identifying a trend as statistically significant given the actual magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency. -->
+This sub-tab shows the results for two different power analyses. Power is described as the likelihood of identifying a trend as statistically significant given the actual magnitude of the trend and sampling frequency.  __For all scenarios, sampling frequency is expressed as a proportion of the observed effort.__  Power is expected to decrease with decreasing trend magnitudes and decreasing sampling frequency.
 
-<!-- The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.   -->
+The __first__ power analysis was conducted to estimate the ability to detect a specific trend for a desired sampling frequency.  This analysis used repeated sampling (n = 1000) of a simulated time series with similar characteristics as the data observed at station `r renderText(input$stasel)`. The observed time series for `r renderText({input$varsel})` at `r renderText({input$stasel})` is shown below.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo1()}, height = 350, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo1()}, height = 350, width = 900)
+```
 
-<!-- Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.  -->
+Results for the power analyses is shown below. The x-axis shows relative sample effort as a proportion of the observed, varying from 10% of the observed (0.1) to twice that of the observed (2). The y-axis shows the magnitude of the actual simulated trend relative to the average concentration of `r renderText({input$varsel})` at `r renderText({input$stasel})`.  The trend magnitude varies as a 10% (0.1) to 100% (1) increase above the average at the site.  The isolines in the plot show lines of constant power for different magnitudes and sample effort.  As expected, power increases with larger trend magnitudes and decreases with less sampling effort.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo3()}, height =650, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo3()}, height =650, width = 900)
+```
 
-<!-- A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.    -->
+A __second__ power analysis was conducted to quantify the likelihood of observing an exceedance of a concentration for `r renderText(input$varsel)` at a given sample density.  This provides an indication of how likely you are to detect a concentration above a value of interest within your sampling design.  Similar methods as the first analysis were used such that power was estimated by repeated sampling of a simulated time series.  Rather than estimating significance of a trend at a simulated magnitude of change, power was defined as significance of a test to detect the mean value of the time series as being different from a specified threshold. Results are shown below, where the x-axis shows relative sample effort and the y-axis shows the concentration defining the threshold.  The interpretation of the power estimates are slightly different than the first analysis.  Rather than showing the percentage of time for which a trend would be detected, the power values show the probability that the true mean is equal to the concentration on the y-axis at a given level of sample effort.
 
-<!-- ```{r} -->
-<!-- renderPlot({powplo6()}, height = 650, width = 900) -->
-<!-- ``` -->
+```{r}
+renderPlot({powplo6()}, height = 650, width = 900)
+```
 
-<!-- ### Optimal effort by constituent -->
+### Optimal effort by constituent
 
-<!-- This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).    -->
+This sub-tab summarizes results for the first power analysis across all stations for `r renderText({input$varsel})`.  The summaries provide an opportunity to identify optimal sample effort.  For all power curves for the constituent, a desired level of power is chosen (`r renderText({input$powsel})`).  All power curves are then plotted that meet the criteria of being monotonic across all levels of sample effort for which power was estimated (some were non-monotonic due to stochastic sub-sampling and/or insufficient data).
 
-<!-- The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.  -->
+The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.
 
-<!-- Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.  Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.   -->
+Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.  Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.
 
-<!-- ```{r} -->
-<!-- column(12,  -->
-<!--        column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8)) -->
-<!--        ) -->
-<!-- ``` -->
+```{r}
+column(12,
+       column(4, selectInput('powsel', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
+       )
+```
 
-<!-- <br> -->
-<!-- <br> -->
+<br>
+<br>
 
-<!-- `r renderText(opttxt())` -->
+`r renderText(opttxt())`
 
-<!-- ```{r} -->
-<!-- renderPlotly(optplo()) -->
-<!-- ``` -->
-
-<!-- <br> -->
-<!-- <br> -->
-<!-- Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.   -->
-
-<!-- ### Optimal effort across constituents -->
-
-<!-- This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.    -->
-
-<!-- ```{r} -->
-<!-- column(12,  -->
-<!--        column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8)) -->
-<!--        ) -->
-<!-- ``` -->
-
-<!-- <br> -->
-<!-- <br> -->
-
-<!-- `r renderText(opttxt2())` -->
-
-<!-- ```{r} -->
-<!-- output$optplo2 <- renderPlotly(optplo2()) -->
-<!-- plotlyOutput('optplo2', height = '700px') -->
-<!-- ``` -->
-
-<!-- <br> -->
-<!-- <br> -->
-<!-- Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents for the selected constituent type.   -->
-
-<!-- Tabular data below shows the same results from the plot.  -->
-
-<!-- ```{r} -->
-<!-- output$opttab2 <- renderReactable(opttab2())  -->
-<!-- fillCol( -->
-<!--   reactableOutput('opttab2') -->
-<!-- ) -->
-<!-- ``` -->
-
-<!-- ## Station differences {.tabset .tabset-pills} -->
-
-<!-- This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar water quality characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.   -->
-
-<!-- ```{r, fig.height = 5, fig.width = 6, fig.align = 'center'} -->
-<!-- # rename some nutrient parameters -->
-<!-- meprp <- medat %>%  -->
-<!--   filter(!StationCode %in% 'SICG03') %>%  -->
-<!--   mutate( -->
-<!--     Date = floor_date(Date, unit = 'month') -->
-<!--   ) %>%  -->
-<!--   filter(Parameter %in% c(metals, nutrs, organs)) %>%  -->
-<!--   select(Watershed, StationCode, Date, Parameter, Result) %>%  -->
-<!--   group_by(Watershed, StationCode, Date, Parameter) %>%  -->
-<!--   summarise(Result = mean(Result, na.rm = T)) %>%  -->
-<!--   group_by(StationCode, Parameter) %>%  -->
-<!--   mutate(Result = case_when( -->
-<!--     is.na(Result) ~ mean(Result, na.rm = T),  -->
-<!--     T ~ Result -->
-<!--     ) -->
-<!--   ) %>%  -->
-<!--   ungroup()  -->
-
-<!-- siteshd <- meprp %>%  -->
-<!--   select(Watershed, StationCode) %>%  -->
-<!--   unique -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- column(12, -->
-<!--   column(6, -->
-<!--         selectInput('consel3', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'), selected = 'nutrs') -->
-<!--          ), -->
-<!--   column(6, -->
-<!--          renderUI({ -->
-
-<!--            # input -->
-<!--            consel3 <- input$consel3 -->
-
-<!--            if(consel3 == 'organs') -->
-<!--              sels <- c('GLYP', 'Malathion') -->
-<!--            else  -->
-<!--             sels <- eval(parse(text = consel3)) -->
-
-<!--            selectInput('varsel2', 'Select constituent:', choices = sels) -->
-
-<!--          }) -->
-<!--   ) -->
-<!-- ) -->
-<!-- column(12,  -->
-<!--   column(6,  -->
-<!--        selectInput('stasel2', 'Select first station:', choices = unique(pows$sta), selected = 'SDMF05') -->
-<!--   ),  -->
-<!--   column(6,  -->
-<!--        selectInput('stasel3', 'Select second station:', choices = unique(pows$sta), selected = 'SADF01') -->
-<!--   ) -->
-<!-- ) -->
-<!-- ``` -->
-
-<!-- This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel2})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).   -->
-
-<!-- ```{r} -->
-<!-- renderPlot({mulplo()}, height = 550, width = 900) -->
-<!-- ``` -->
-
-<!-- Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month.  -->
-
-<!-- ### Time series -->
-
-<!-- ```{r} -->
-<!-- renderPlot({obsp4()}, height = 450, width = 700) -->
-<!-- ``` -->
-
-<!-- ### By year -->
-
-<!-- ```{r} -->
-<!-- renderPlot({obsp5()}, height = 450, width = 700) -->
-<!-- ``` -->
-
-<!-- ### By month -->
-
-<!-- ```{r} -->
-<!-- renderPlot({obsp6()}, height = 450, width = 700) -->
-<!-- ``` -->
-
-<!-- ## Overall trends -->
-
-<!-- ```{r} -->
-<!-- column(12,  -->
-<!--   column(6,  -->
-<!--        selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'),  selected = 'nutrs') -->
-<!--   ), -->
-<!--   column(6,  -->
-<!--        renderUI({ -->
-
-<!--          # input -->
-<!--          consel4 <- input$consel4 -->
-
-<!--          if(consel4 == 'organs') -->
-<!--              sels <- c('GLYP', 'Malathion') -->
-<!--            else  -->
-<!--             sels <- eval(parse(text = consel4)) -->
-
-<!--          sels <- eval(parse(text = consel4)) -->
-<!--          selectInput('varsel3', 'Select constituent:', choices = sels) -->
-
-<!--        }) -->
-<!--   ) -->
-<!-- ) -->
-
-<!-- ``` -->
-
-<!-- This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test. -->
-
-<!-- The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map. -->
-
-<!-- ```{r} -->
-<!-- renderLeaflet(alltrndmap()) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- renderUI(alltrndtab()) -->
-<!-- ``` -->
+```{r}
+renderPlotly(optplo())
+```
+
+<br>
+<br>
+Note: Changing the station selection above does not affect the estimates since the optimal level is an aggregate across stations.
+
+### Optimal effort across constituents
+
+This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.
+
+```{r}
+column(12,
+       column(4, selectInput('powsel2', 'Select power target:', choices = seq(0.1, 0.9, by = 0.1), selected = 0.8))
+       )
+```
+
+<br>
+<br>
+
+`r renderText(opttxt2())`
+
+```{r}
+output$optplo2 <- renderPlotly(optplo2())
+plotlyOutput('optplo2', height = '700px')
+```
+
+<br>
+<br>
+Note: Changing the station and constituent selection above does not affect the estimates since the optimal level is an aggregate across stations and constituents for the selected constituent type.
+
+Tabular data below shows the same results from the plot.
+
+```{r}
+output$opttab2 <- renderReactable(opttab2())
+fillCol(
+  reactableOutput('opttab2')
+)
+```
+
+## Station differences {.tabset .tabset-pills}
+
+This tab shows similarities among stations for selected constituents.  This information can be useful to identify which stations have similar water quality characteristics over time and which stations do not.  Sampling less frequently at stations with similar characteristics may be useful for optimizing efficiency of the monitoring program.  Note that there are insufficient data for organics for a complete analysis.
+
+```{r, fig.height = 5, fig.width = 6, fig.align = 'center'}
+# rename some nutrient parameters
+sdprp <- sddat %>%
+  mutate(
+    Date = floor_date(Date, unit = 'month')
+  ) %>%
+  filter(Parameter %in% c(metals, nutrs, organs)) %>%
+  select(Watershed, StationCode, Date, Parameter, location, Result) %>%
+  group_by(Watershed, StationCode, Date, Parameter, location) %>%
+  summarise(Result = mean(Result, na.rm = T), .groups = 'drop') %>%
+  group_by(StationCode, Parameter, location) %>%
+  mutate(Result = case_when(
+    is.na(Result) ~ mean(Result, na.rm = T),
+    T ~ Result
+    )
+  ) %>% 
+  ungroup()
+
+siteshd <- sdprp %>%
+  select(Watershed, StationCode) %>%
+  unique
+```
+
+```{r}
+column(12,
+  column(4,
+    selectInput('consel3', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs'), selected = 'nutrs')
+         ),
+  column(4, 
+    selectInput('locsel3', 'Select sampling location:', choices = lxs)     
+  ),
+  column(4,
+    renderUI({
+
+      # input
+      consel3 <- input$consel3
+      locsel3 <- input$locsel3
+  
+      sels <- eval(parse(text = consel3))
+      sels <- sddat %>% 
+        filter(location %in% locsel3) %>% 
+        filter(Parameter %in% sels) %>% 
+        pull(Parameter) %>% 
+        unique %>% 
+        sort
+        
+      selectInput('varsel3', 'Select constituent:', choices = sels)
+
+    })
+  )
+)
+column(12,
+  column(4,
+    selectInput('shdsel2', 'Select watershed:', choices = c('all', unique(sddat$Watershed)))
+  ),
+  column(4,
+    renderUI({
+    
+      # input
+      shdsel2 <- input$shdsel2
+      
+      if(shdsel2 == 'all')
+        shdsel2 <- unique(sddat$Watershed)
+      
+      sels <- sddat %>%
+        filter(Watershed %in% shdsel2) %>%
+        pull(StationCode) %>%
+        unique
+      
+      selectInput('stasel2', 'Select first station:', choices = sels)
+    
+    })
+  ),     
+  column(4,
+    renderUI({
+    
+      # input
+      shdsel2 <- input$shdsel2
+      
+      if(shdsel2 == 'all')
+        shdsel2 <- unique(sddat$Watershed)
+      
+      sels <- sddat %>%
+        filter(Watershed %in% shdsel2) %>%
+        pull(StationCode) %>%
+        unique
+      
+      selectInput('stasel3', 'Select second station:', choices = sels, selected = sels[2])
+    
+    })
+  )
+)
+```
+
+This plot shows a Principal Components Analysis (PCA) comparison of all sites, dates, and constituents and a dissimilarity matrix for `r renderText({input$varsel3})` between the time series at each station.  Blue tiles are more similar and red are more dissimilar.  The larger points (black and transparent black) in the PCA plot correspond to the observations at the two selected stations from the drop-down menus above.  The dissimilarity estimate for the two selected sites is also emphasized by black outline in the right plot. Sites with points that closely overlap on the PCA plot have lower dissimilarity measures (blue tiles), whereas sites with less overlap show higher dissimilarity measures (red tiles).
+
+```{r}
+renderPlot({mulplo()}, height = 550, width = 900)
+```
+
+Information for the two selected stations above can be further evaluated by viewing the observed time series.  Sites that are similar will have time series with similar characteristics.  This will likely apply to the observed data, the boxplots by year, and the boxplots by month.
+
+### Time series
+
+```{r}
+renderPlot({obsp4()}, height = 450, width = 700)
+```
+
+### By year
+
+```{r}
+renderPlot({obsp5()}, height = 450, width = 700)
+```
+
+### By month
+
+```{r}
+renderPlot({obsp6()}, height = 450, width = 700)
+```
+
+## Overall trends
+
+```{r}
+column(12,
+  column(4,
+    selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'),  selected = 'nutrs')
+  ),
+  column(4, 
+    selectInput('locsel4', 'Select sampling location:', choices = lxs)     
+  ),
+  column(4,
+    renderUI({
+
+      # input
+      consel4 <- input$consel4
+      locsel4 <- input$locsel4
+  
+      sels <- eval(parse(text = consel4))
+      sels <- sddat %>% 
+        filter(location %in% locsel4) %>% 
+        filter(Parameter %in% sels) %>% 
+        pull(Parameter) %>% 
+        unique %>% 
+        sort
+        
+
+      selectInput('varsel4', 'Select constituent:', choices = sels)
+
+    })
+  )
+)
+
+```
+
+This final tab shows results of trends at all stations using Kendall tests. These tests provide a non-parametric indication of a trend by evaluating magnitude, direction, and significance of a change over time. The value for tau ranges from -1 to 1 and provides a measure of trend direction. The slope is the estimated change per year in density and the p-value shows the significance of the test.
+
+The maps show the value for tau (direction of trend) for a Kendall test for changes across stations, green for decreasing and red for increasing. Size of the point is the magnitude of the estimated change over time.  The table shows the detailed results from the map.
+
+```{r}
+renderLeaflet(alltrndmap())
+```
+
+```{r}
+renderUI(alltrndtab())
+```

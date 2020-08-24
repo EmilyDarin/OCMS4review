@@ -10,6 +10,7 @@ Four web pages are provided for separate components of the Orange County monitor
 * [Mass emissions, loads](https://sccwrp.shinyapps.io/ocms4review/mass_emissions_loads.Rmd)
 * [Dry weather/IDIC](https://sccwrp.shinyapps.io/ocms4review/dry_weather.Rmd)
 * [Tissue samples](https://sccwrp.shinyapps.io/ocms4review/tissue.Rmd)
+* [Harbors and estuaries](https://sccwrp.shinyapps.io/ocms4review/harbors_estuaries.Rmd)
 
 ## Overview
 
@@ -41,7 +42,7 @@ This website provides technical material that addresses several of these questio
 
 <!-- ## Methods -->
 
-<!-- This plot shows 20 simulated time series of `r renderText(input$varsel)` trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 30\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the top right, a trend of 30\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. -->
+<!-- This plot shows 20 simulated time series of trends that are based on variance estimates from the observed time series.  Four types of simulations are shown.  In the top left, a trend of 30\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the top right, a trend of 30\% change from the original value is shown with a sampling effort of 100\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 30\% that of the original time series. In the bottom left, a trend of 100\% change from the original value is shown with a sampling effort of 10\% that of the original time series. Lines in red are significant ($\alpha$ = 0.05) based on results of a linear trend analysis.  The total power is based on the number of significant results for each scenario divided by the total number of simulations (n = 20 for each).  As such, increasing power is observed with stronger trends and higher sampling densities. -->
 
 <!-- ```{r} -->
 <!-- renderPlot({powplo2()}, height = 550, width = 900) -->

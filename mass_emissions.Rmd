@@ -403,7 +403,8 @@ trndp2 <- reactive({
     arrange(Parameter, Date) %>%
     group_by(Parameter) %>%
     mutate(
-      avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution')
+      avg = stats::filter(Result, rep(1, win)/win, sides = 1, method = 'convolution'),
+      avg = as.numeric(avg)
     ) %>%
     ungroup %>%
     mutate(
