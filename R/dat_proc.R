@@ -68,32 +68,23 @@ save(medat, file = here::here('data', 'medat.RData'), compress = 'xz')
 
 # harbors and estuaries ---------------------------------------------------
 
-metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se",
             "Zn")
-organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
-            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
-            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
-            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
-            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
-            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
-            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
-            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
-            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
-            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
-            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
-            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
-            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
-            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
-            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
-            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
-            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
-            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
-            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
-            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
-            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
-            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
-            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
-            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+organs <- c("2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", "2,4,5,-T", "Aldrin", 
+            "Allethrin", "Alpha-BHC", "Atrazine", "Azinphos methyl (Guthion)", 
+            "Be", "Beta-BHC", "Bifenthrin", "Bolstar", "Chlordane", "Chlorpyrifos", 
+            "Cis-Permethrin", "Coumaphos", "Cyfluthrin", "Cypermethrin", 
+            "Dalapon", "DDT", "Delta-BHC", "Deltamethrin", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dicamba", "Dichlorprop", "Dichlorvos", "Dieldrin", 
+            "Dimethoate", "Dinoseb", "Disulfoton", "Endosulfan I", "Endosulfan II", 
+            "Endosulfan Sulfate", "Endrin", "Endrin Aldehyde", "Endrin Ketone", 
+            "Ethoprop", "Ethyl Parathion", "Fensulfothion", "Fenthion", "Gamma-BHC", 
+            "GLYP", "Heptachlor Epoxide", "HPAH", "L-Cyhalothrin", "LPAH", 
+            "Malathion", "MCPA", "MCPP", "Merphos", "Mevinphos", "Mirex", 
+            "Nitrogen-S", "OxyChlordane", "Parathion-methyl", "PCB", "Permethrin", 
+            "Perthane", "pH", "Phorate", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Ronnel", "Sb", "Simazine", "Tetrachlorovinphos", 
+            "Tl", "TOC-S", "Tokuthion", "Total chlordane", "Toxaphene", "Trans-Permethrin", 
             "Trichloronate")
 nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
 
@@ -134,7 +125,7 @@ wcchem <- bind_rows(wcchem1, wcchem2) %>%
   group_by(Parameter) %>% 
   filter(n() > 30) %>% 
   ungroup %>% 
-  filter(Parameter %in% c(nutrs, metals, organs)) %>% 
+  filter(Parameter %in% c(nutrs, metals, organs)) %>%
   mutate(
     location = 'wc'
   )
@@ -152,7 +143,7 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
     .groups = 'drop'
   ) %>% 
   mutate(
-    Parameter2 = case_when(
+    Parameter = case_when(
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
       grepl('^PCB', Parameter) ~ 'PCB', 
       grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$|^Cis-Nonachlor$|^Trans-Nonachlor$|^Heptachlor$|^Methoxychlor$', Parameter) ~ 'Total chlordane',
@@ -169,7 +160,7 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
   group_by(Parameter) %>% 
   filter(n() > 30) %>% 
   ungroup %>% 
-  filter(Parameter %in% c(nutrs, metals, organs)) %>% 
+  filter(Parameter %in% c(nutrs, metals, organs)) %>%
   mutate(
     location = 'sd'
   )
@@ -1175,32 +1166,23 @@ save(tsopteffext, file = here::here('data', 'tsopteffext.RData'), compress = 'xz
 data(sddat)
 
 # constituents
-metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se",
             "Zn")
-organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
-            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
-            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
-            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
-            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
-            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
-            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
-            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
-            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
-            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
-            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
-            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
-            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
-            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
-            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
-            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
-            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
-            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
-            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
-            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
-            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
-            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
-            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
-            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+organs <- c("2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", "2,4,5,-T", "Aldrin", 
+            "Allethrin", "Alpha-BHC", "Atrazine", "Azinphos methyl (Guthion)", 
+            "Be", "Beta-BHC", "Bifenthrin", "Bolstar", "Chlordane", "Chlorpyrifos", 
+            "Cis-Permethrin", "Coumaphos", "Cyfluthrin", "Cypermethrin", 
+            "Dalapon", "DDT", "Delta-BHC", "Deltamethrin", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dicamba", "Dichlorprop", "Dichlorvos", "Dieldrin", 
+            "Dimethoate", "Dinoseb", "Disulfoton", "Endosulfan I", "Endosulfan II", 
+            "Endosulfan Sulfate", "Endrin", "Endrin Aldehyde", "Endrin Ketone", 
+            "Ethoprop", "Ethyl Parathion", "Fensulfothion", "Fenthion", "Gamma-BHC", 
+            "GLYP", "Heptachlor Epoxide", "HPAH", "L-Cyhalothrin", "LPAH", 
+            "Malathion", "MCPA", "MCPP", "Merphos", "Mevinphos", "Mirex", 
+            "Nitrogen-S", "OxyChlordane", "Parathion-methyl", "PCB", "Permethrin", 
+            "Perthane", "pH", "Phorate", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Ronnel", "Sb", "Simazine", "Tetrachlorovinphos", 
+            "Tl", "TOC-S", "Tokuthion", "Total chlordane", "Toxaphene", "Trans-Permethrin", 
             "Trichloronate")
 nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
 
@@ -1277,32 +1259,23 @@ save(sdpows, file = here::here('data', 'sdpows.RData'), compress = 'xz')
 data(sddat)
 
 # constituents
-metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se",
             "Zn")
-organs <- c("(1,2,3-CE)Pyrene", "1-methylnaphthalene", "1-Methylnaphthalene", 
-            "1-Methylphenanthrene", "1,2,5,6- Dibenzanthracene", "2-methylnaphthalene", 
-            "2-Methylnaphthalene", "2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", 
-            "2,4,5,-T", "2,6-Dimethylnaphthalene", "Acenaphthene", "Acenapthene", 
-            "Acenapthylene", "Aldrin", "Allethrin", "Alpha-BHC", "Anthracene", 
-            "Atrazine", "Be", "Benzo (A) Anthracene", "Benzo (A) Pyrene", 
-            "Benzo (GHI) Perylene", "Benzo (K) Fluoranthene", "Benzo(b)Fluoranthene", 
-            "Benzo(e)pyrene", "Benzo[a]anthracene", "Benzo[a]pyrene", "Benzo[e]pyrene", 
-            "Beta-BHC", "Bifenthrin", "Biphenyl", "Chlordane", "Chrysene", 
-            "Cis-Permethrin", "Cyfluthrin", "Cypermethrin", "Dalapon", "Delta-BHC", 
-            "Deltamethrin", "Dibenz[a,h]anthracene", "Dicamba", "Dichlorprop", 
-            "Dieldrin", "Dinoseb", "Endosulfan I", "Endosulfan II", "Endosulfan Sulfate", 
-            "Endrin", "Endrin Aldehyde", "Endrin Ketone", "Fluoranthene", 
-            "Fluorene", "Gamma-BHC", "Heptachlor", "Heptachlor Epoxide", 
-            "L-Cyhalothrin", "MCPA", "MCPP", "Methoxychlor", "Mirex", "Naphthalene", 
-            "Nitrogen-S", "OxyChlordane", "Permethrin", "Perthane", "Perylene", 
-            "pH", "Phenanthrene", "Phosphorus-S", "Prallethrin", "Prometon", 
-            "Prometryn", "Pyrene", "Sb", "Simazine", "Tl", "TOC-S", "Toxaphene", 
-            "Trans-Nonachlor", "Trans-Permethrin", "Azinphos methyl (Guthion)", 
-            "Bolstar", "Chlorpyrifos", "Coumaphos", "DDT", "Demeton-o", "Demeton-s", 
-            "Diazinon", "Dichlorvos", "Dimethoate", "Disulfoton", "Ethoprop", 
-            "Ethyl Parathion", "Fensulfothion", "Fenthion", "GLYP", "Malathion", 
-            "Merphos", "Mevinphos", "Parathion-methyl", "PCB", "Phorate", 
-            "Ronnel", "Tetrachlorovinphos", "Tokuthion", "Total chlordane", 
+organs <- c("2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", "2,4,5,-T", "Aldrin", 
+            "Allethrin", "Alpha-BHC", "Atrazine", "Azinphos methyl (Guthion)", 
+            "Be", "Beta-BHC", "Bifenthrin", "Bolstar", "Chlordane", "Chlorpyrifos", 
+            "Cis-Permethrin", "Coumaphos", "Cyfluthrin", "Cypermethrin", 
+            "Dalapon", "DDT", "Delta-BHC", "Deltamethrin", "Demeton-o", "Demeton-s", 
+            "Diazinon", "Dicamba", "Dichlorprop", "Dichlorvos", "Dieldrin", 
+            "Dimethoate", "Dinoseb", "Disulfoton", "Endosulfan I", "Endosulfan II", 
+            "Endosulfan Sulfate", "Endrin", "Endrin Aldehyde", "Endrin Ketone", 
+            "Ethoprop", "Ethyl Parathion", "Fensulfothion", "Fenthion", "Gamma-BHC", 
+            "GLYP", "Heptachlor Epoxide", "HPAH", "L-Cyhalothrin", "LPAH", 
+            "Malathion", "MCPA", "MCPP", "Merphos", "Mevinphos", "Mirex", 
+            "Nitrogen-S", "OxyChlordane", "Parathion-methyl", "PCB", "Permethrin", 
+            "Perthane", "pH", "Phorate", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "Prometryn", "Ronnel", "Sb", "Simazine", "Tetrachlorovinphos", 
+            "Tl", "TOC-S", "Tokuthion", "Total chlordane", "Toxaphene", "Trans-Permethrin", 
             "Trichloronate")
 nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
 
