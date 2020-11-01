@@ -122,7 +122,7 @@ wcchem <- bind_rows(wcchem1, wcchem2) %>%
       Parameter == 'NitrateNitriteNO3' ~ 'Nitrate, Nitrite',
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
       grepl('^PCB', Parameter) ~ 'PCB', 
-      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$|^Cis-Nonachlor$|^Trans-Nonachlor$|^Heptachlor$|^Methoxychlor$', Parameter) ~ 'Total chlordane',
       T ~ Parameter
     )
   ) %>% 
@@ -139,7 +139,6 @@ wcchem <- bind_rows(wcchem1, wcchem2) %>%
     location = 'wc'
   )
 
-# sed chem
 sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.csv') %>% 
   select(-Entry.Set, -Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Type, -Sample.Type, -QA.Type, -SampleDepth) %>% 
   mutate(
@@ -153,10 +152,12 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
     .groups = 'drop'
   ) %>% 
   mutate(
-    Parameter = case_when(
+    Parameter2 = case_when(
       grepl('DDD$|DDE$|DDT$', Parameter) ~ 'DDT', 
       grepl('^PCB', Parameter) ~ 'PCB', 
-      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$', Parameter) ~ 'Total chlordane',
+      grepl('^Chlordane-alpha$|^Chlordane-gamma$|^cis-Nonachlor$|^trans-Nonachlor$|^Cis-Nonachlor$|^Trans-Nonachlor$|^Heptachlor$|^Methoxychlor$', Parameter) ~ 'Total chlordane',
+      grepl('^1\\-methylnaphthalene$|^1\\-Methylnaphthalene$|^1\\-Methylphenanthrene$|^2\\-methylnaphthalene$|^2\\-Methylnaphthalene$|^2\\,6\\-Dimethylnaphthalene$|^Acenaphthene$|^Acenapthene$|^Acenapthylene$|^Anthracene$|^Biphenyl$|^Fluorene$|^Naphthalene$|^Phenanthrene$', Parameter) ~ 'LPAH',
+      grepl('^\\(1\\,2\\,3\\-CE\\)Pyrene$|^1\\,2\\,5\\,6\\-\\sDibenzanthracene$|^Benzo\\s\\(A\\)\\sAnthracene$|^Benzo\\s\\(A\\)\\sPyrene$|^Benzo\\s\\(GHI\\)\\sPerylene$|^Benzo\\s\\(K\\)\\sFluoranthene$|^Benzo\\(b\\)Fluoranthene$|^Benzo\\(e\\)pyrene$|^Benzo\\[a\\]anthracene$|^Benzo\\[a\\]pyrene$|^Benzo\\[e\\]pyrene$|^Chrysene$|^Dibenz\\[a\\,h\\]anthracene$|^Fluoranthene$|^Perylene$|^Pyrene$', Parameter) ~ 'HPAH',
       T ~ Parameter
     )
   ) %>% 
