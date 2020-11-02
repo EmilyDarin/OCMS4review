@@ -1159,10 +1159,11 @@ optdat2 <- reactive({
     na.omit %>%
     unite('stapar', sta, par, remove = F, sep = ', ') %>%
     ungroup %>% 
-    left_join(meddat,by = c('sta', 'par'))
+    rename(Parameter = par) %>% 
+    left_join(meddat,by = c('sta', 'Parameter'))
 
   })
-  
+
   validate(
     need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power')
   )
@@ -1232,7 +1233,7 @@ optplo2 <- reactive({
   # make groups for mouseover
   opts <- optdat2$opts %>% 
     mutate(
-      labs = paste0(sta, ', ', par, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', round(medval, 2), ', threshold: ', round(Threshold, 2), ', quantile: ', round(qntval, 2), ', weight: ', round(wgt, 2), ', weight type: ', reltyp
+      labs = paste0(sta, ', ', Parameter, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', round(medval, 2), ', threshold: ', round(Threshold, 2), ', quantile: ', round(qntval, 2), ', weight: ', round(wgt, 2), ', weight type: ', reltyp
                     )
     )
   
@@ -1285,16 +1286,17 @@ opttab2 <- reactive({
   optdat2 <- optdat2()
 
   totab <- optdat2$opts %>%
-    select(par, sta, eff, medval, qntval)
+    select(Parameter, sta, eff, medval, qntval, Threshold)
 
   out <- reactable(totab,
-                   groupBy = 'par',
+                   groupBy = 'Parameter',
                    columns = list(
                      par = colDef(name = 'Constituent'),
                      sta = colDef(name = 'Station'),
                      eff = colDef(name = 'Optimal effort'),
                      medval = colDef(name = 'Median value at station'),
-                     qntval = colDef(name = 'Quantile of median value')
+                     qntval = colDef(name = 'Quantile of median value'), 
+                     Threshold = colDef(name = 'Threshold')
                    ),
                    defaultColDef = colDef(
                      footerStyle = list(fontWeight = "bold"),
@@ -1643,7 +1645,7 @@ This sub-tab summarizes results for the first power analysis across all stations
 
 The "optimal" level of sampling for each station is estimated as the point which the slope of y ~ x exceeds that of x ~ y, such that further reductions in sample effort (x) caused disproportionate increases in magnitude of the required trend (y) to detect for the desired power (`r renderText(input$powsel)`).  In other words, optimal was defined as the maximum reduction in sample effort where the increase in the magnitude of the trend change did not increase substantially relative to the reduction in sample effort.  __The gray points in the plot show the optimal level of effort for the station__.  The optimal level of effort for the constituent is then summarized across all stations on the top marginal boxplot, i.e., the median optimal value across all stations.
 
-Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.  Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.
+Each grey point (optimal effort) is also sized in proportion to how close the median value of `r renderText({input$varsel})` is to the threshold.  Larger points indicate the median is close to the threshold, suggesting that changes in sample effort should be more carefully examined than stations where the median is farther from the threshold.  Thresholds were obtained from OCPW and are approximate in some cases. In the absence of a threshold, the point is sized relative to the overall median for a parameter across all sites.  Mouseover a point to see details (station, effort, change, median value, thresholds if applicable, quantile of median relative to other sites, weighting for point size, and weighting type as either quantile if relative to median or threshold if relative to threshold).
 
 ```{r}
 column(12,
@@ -1666,7 +1668,7 @@ Note: Changing the station selection above does not affect the estimates since t
 
 ### Optimal effort across constituents
 
-This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases where thresholds vary as a function of conditions measured at a site, e.g., water hardness for metals or pH/Temperature for Ammonia.
+This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases. Mouseover a point to see details (station, parameter, effort, change, median value, thresholds if applicable, quantile of median relative to other sites, weighting for point size, and weighting type as either quantile if relative to median or threshold if relative to threshold).
 
 ```{r}
 column(12,
