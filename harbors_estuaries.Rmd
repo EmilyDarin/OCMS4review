@@ -88,12 +88,13 @@ pbase <- theme_bw(base_family = 'serif') +
   ) 
 
 data(sddat)
+data(sdthrsdat)
 data(sdpows)
 data(sdthrs)
 data(sdopteff)
 
 # constituents
-metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se", 
+metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se",
             "Zn")
 organs <- c("2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", "2,4,5,-T", "Aldrin", 
             "Allethrin", "Alpha-BHC", "Atrazine", "Azinphos methyl (Guthion)", 
@@ -887,6 +888,27 @@ mulplo <- reactive({
 
 })
 
+# treshold value for constituent
+varthr <- reactive({
+  
+  # input
+  varsel <- input$varsel
+  shdsel <- input$shdsel
+  locsel2 <- input$locsel2
+  
+  if(shdsel == 'all')
+    shdsel <- unique(sddat$Watershed)
+
+  out <- sdthrsdat %>% 
+    filter(par %in% varsel) %>% 
+    filter(Watershed %in% shdsel) %>% 
+    filter(location %in% locsel2) %>% 
+    rename(Parameter = par)
+  
+  return(out)
+  
+})
+
 # optimal sample effort data
 optdat <- reactive({
 
@@ -896,6 +918,7 @@ optdat <- reactive({
   shdsel <- input$shdsel
   consel2 <- input$consel2
   locsel2 <- input$locsel2
+  varthr <- varthr()
   
   if(shdsel == 'all')
     shdsel <- unique(sddat$Watershed)
@@ -911,22 +934,37 @@ optdat <- reactive({
     filter(sta %in% stasels)
 
   # get median values of constituent for each station
-  # calculate diff from threshold
+  # calculate diff from threshold as a weight for the size in the plots
+  # if a threshold is available, the weight is inverse of percent difference between median and threshold
+  # if a threshold is unavailable, the weight is inverse of percent difference between ecdf of median and 0.5
   meddat <- sddat %>%
     filter(Parameter %in% varsel) %>%
+    filter(Watershed %in% shdsel) %>% 
     filter(StationCode %in% dat$sta) %>%
+    filter(location %in% locsel2) %>% 
+    left_join(varthr, by = c('Watershed', 'Parameter', 'location')) %>% 
     group_by(StationCode) %>%
-    summarise(medval = median(Result, na.rm = T)) %>% 
-    ungroup %>% 
+    summarise(
+      medval = median(Result, na.rm = T), 
+      Threshold = unique(Threshold), 
+      .groups = 'drop'
+      ) %>%
     mutate(
       qntval = ecdf(medval)(medval), 
-      qntdif = abs(qntval - 0.5), 
-      qntwgt = 1 - qntdif
+      wgt = case_when(
+        is.na(Threshold) ~ 1 / (abs(qntval - 0.5) / 0.5),
+        T ~ 1 / (abs(medval - Threshold) / Threshold)
+      ), 
+      wgt = ifelse(is.infinite(wgt), 1, wgt),
+      reltyp = case_when(
+        is.na(Threshold) ~ 'quantile',
+        T ~ 'threshold'
+      )
     ) %>% 
     rename(
       sta = StationCode
-      )
-
+    )
+  
   opts <- dat %>%
     group_by(sta) %>%
     nest %>%
@@ -985,7 +1023,12 @@ optplo <- reactive({
   optdat <- optdat()
   powsel <- input$powsel
 
-  opts <- optdat$opts 
+  # make group for mouseover
+  opts <- optdat$opts %>% 
+    mutate(
+      labs = paste0(sta, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', round(medval, 2), ', threshold: ', round(Threshold, 2), ', quantile: ', round(qntval, 2), ', weight: ', round(wgt, 2), ', weight type: ', reltyp
+                    )
+    )
   
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
@@ -1005,8 +1048,8 @@ optplo <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = sta), breaks = as.numeric(powsel), size = 0.5) +
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = sta, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') +
-    scale_size_continuous(guide = F, trans = 'reverse', limits = c(NA, 0)) +
+    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = wgt), pch = 21, fill = 'lightgrey', colour = 'black') +
+    scale_size_continuous(guide = F, limits = c(0, NA)) +
     scale_x_continuous(limits = c(0.1, 2)) +
     thm3 +
     labs(
@@ -1025,6 +1068,27 @@ optplo <- reactive({
 
 })
 
+# threshold value for constituent
+varthr2 <- reactive({
+  
+  # input
+  consel2 <- input$consel2
+  shdsel <- input$shdsel
+  locsel2 <- input$locsel2
+  
+  if(shdsel == 'all')
+    shdsel <- unique(sddat$Watershed)
+
+  out <- sdthrsdat %>% 
+    filter(par %in% get(consel2)) %>% 
+    filter(Watershed %in% shdsel) %>% 
+    filter(location %in% locsel2) %>% 
+    rename(Parameter = par)
+  
+  return(out)
+  
+})
+
 # optimal sample effort data, all constituents
 optdat2 <- reactive({
 
@@ -1033,7 +1097,8 @@ optdat2 <- reactive({
   powsel2 <- input$powsel2
   locsel2 <- input$locsel2
   shdsel <- input$shdsel
-
+  varthr2 <- varthr2()
+  
   if(shdsel == 'all')
     shdsel <- unique(sddat$Watershed)
 
@@ -1047,26 +1112,37 @@ optdat2 <- reactive({
     filter(loc %in% locsel2) %>% 
     filter(sta %in% stasels)
 
-  # get weighting for optimal value
-  # stations with median value closest to median are given highest weight
-  # farther from median, weight decreases
-  meddat <- sddat %>% 
-    filter(Parameter %in% get(consel2)) %>% 
-    filter(StationCode %in% dat$sta) %>% 
-    group_by(StationCode, Parameter) %>% 
-    summarise(medval = median(Result, na.rm = T)) %>% 
-    ungroup %>% 
-    group_by(Parameter) %>% 
+  # get median values of constituent for each station
+  # calculate diff from threshold as a weight for the size in the plots
+  # if a threshold is available, the weight is inverse of percent difference between median and threshold
+  # if a threshold is unavailable, the weight is inverse of percent difference between ecdf of median and 0.5
+  meddat <- sddat %>%
+    filter(Parameter %in% get(consel2)) %>%
+    filter(Watershed %in% shdsel) %>% 
+    filter(StationCode %in% dat$sta) %>%
+    filter(location %in% locsel2) %>% 
+    left_join(varthr2, by = c('Watershed', 'Parameter', 'location')) %>% 
+    group_by(StationCode, Parameter) %>%
+    summarise(
+      medval = median(Result, na.rm = T), 
+      Threshold = unique(Threshold), 
+      .groups = 'drop'
+      ) %>%
     mutate(
       qntval = ecdf(medval)(medval), 
-      qntdif = abs(qntval - 0.5), 
-      qntwgt = 1 - qntdif
-    ) %>%
-    ungroup() %>% 
-    rename(
-      sta = StationCode, 
-      par = Parameter
+      wgt = case_when(
+        is.na(Threshold) ~ 1 / (abs(qntval - 0.5) / 0.5),
+        T ~ 1 / (abs(medval - Threshold) / Threshold)
+      ), 
+      wgt = ifelse(is.infinite(wgt), 1, wgt),
+      reltyp = case_when(
+        is.na(Threshold) ~ 'quantile',
+        T ~ 'threshold'
       )
+    ) %>% 
+    rename(
+      sta = StationCode
+    )
   
   opts <- try({sdpows %>%
     filter(par %in% get(consel2)) %>% 
@@ -1151,9 +1227,15 @@ optplo2 <- reactive({
   powsel2 <- input$powsel2
 
   toplo <- optdat2$toplo
-  opts <- optdat2$opts
   selopteff <- optdat2$selopteff
 
+  # make groups for mouseover
+  opts <- optdat2$opts %>% 
+    mutate(
+      labs = paste0(sta, ', ', par, ', effort: ', round(eff, 2), ', change: ', round(chg, 2), ', median: ', round(medval, 2), ', threshold: ', round(Threshold, 2), ', quantile: ', round(qntval, 2), ', weight: ', round(wgt, 2), ', weight type: ', reltyp
+                    )
+    )
+  
   # boxplot
   p1 <- ggplot(opts, aes(x = 'x', y = eff)) +
     geom_boxplot() +
@@ -1169,9 +1251,9 @@ optplo2 <- reactive({
   p2 <- ggplot(toplo) +
     geom_contour(aes(x = eff, y = chg, z = pow, group = stapar), breaks = as.numeric(powsel2), size = 0.5) +
     # geom_text_repel(data = opts, aes(x = eff, y = chg, label = sta)) +
-    geom_point(data = opts, aes(x = eff, y = chg, group = stapar, size = qntwgt), pch = 21, fill = 'lightgrey', colour = 'black') +
+    geom_point(data = opts, aes(x = eff, y = chg, group = labs, size = wgt), pch = 21, fill = 'lightgrey', colour = 'black') +
     scale_x_continuous(limits = c(0.1, 2)) +
-    scale_size_continuous(guide = F, trans = reverselog_trans(10)) +
+    scale_size_continuous(guide = F, limits = c(0, NA)) +
     thm3 +
     labs(
       x = 'Relative sample effort',
