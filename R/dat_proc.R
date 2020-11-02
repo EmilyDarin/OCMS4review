@@ -320,6 +320,14 @@ methrsdat <- read_csv(here::here('data/raw/template3 sg.csv'), na = 'N/A') %>%
   
 save(methrsdat, file = here::here('data/methrsdat.RData'))
 
+
+# harbors and estuaries thresholds ----------------------------------------
+
+# the raw file was made my hand from harbors_estuaries_thresholds.csv
+sdthrsdat <- read.csv('data/raw/sdthrsdat.csv', stringsAsFactors = F)
+
+save(sdthrsdat, file = 'data/sdthrsdat.RData', compress = 'xz')
+
 # dry weather sampling tmdl waterbodies -----------------------------------
 
 
