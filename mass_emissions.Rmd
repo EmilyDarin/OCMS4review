@@ -1301,7 +1301,8 @@ alltrnd <- reactive({
     select(-res) %>% 
     bind_cols(res) %>% 
     mutate(
-      trend = ifelse(tau < 0, 'dec', 'inc'), 
+      trend = ifelse(tau < 0, 'dec', 'inc'),
+      trend = factor(trend, levels = c('inc', 'dec')), 
       slope = as.numeric(slope),
       n = as.numeric(n),
       tau = as.numeric(tau)
@@ -1341,12 +1342,8 @@ alltrndmap <- reactive({
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
   # point colors
-  cols <- tomap %>%
-    mutate(
-      cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
-      cols = as.character(cols)
-    ) %>%
-    pull(cols)
+  cols <- c('tomato1', 'lightgreen')
+  names(cols) <- c('dec', 'inc')
 
   # size values
   cexv <- tomap %>%

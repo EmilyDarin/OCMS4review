@@ -1373,6 +1373,7 @@ alltrnd <- reactive({
     bind_cols(res) %>%
     mutate(
       trend = ifelse(tau < 0, 'dec', 'inc'),
+      trend = factor(trend, levels = c('inc', 'dec')),
       slope = as.numeric(slope),
       n = as.numeric(n),
       tau = as.numeric(tau)
@@ -1412,12 +1413,8 @@ alltrndmap <- reactive({
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
   # point colors
-  cols <- tomap %>%
-    mutate(
-      cols = factor(trend, levels = c('dec', 'inc'), labels = c('lightgreen', 'tomato1')),
-      cols = as.character(cols)
-    ) %>%
-    pull(cols)
+  cols <- c('tomato1', 'lightgreen')
+  names(cols) <- c('dec', 'inc')
 
   # size values
   cexv <- tomap %>%
@@ -1429,7 +1426,7 @@ alltrndmap <- reactive({
   labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
   mapviewOptions(leafletHeight = 500)
 
-  out <- mapview(tomap, zcol = 'tau', cex = cexv, label = labs, col.regions = cols, legend = F, map.types = mptyps)@map
+  out <- mapview(tomap, zcol = 'trend', cex = cexv, label = labs, col.regions = c('tomato1', 'lightgreen'), legend = F, map.types = mptyps)@map
 
   return(out)
 
@@ -1440,8 +1437,7 @@ This website presents an evaluation of the Orange County harbors and estuaries m
 
 * __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
 * __Trends and power analyses__: Changes over time by select constituents and locations, including power analyses to help identify optimal sampling effort
-
-<!-- * __Station differences__: A comparison of time series between stations to identify similarities among trends -->
+* __Station differences__: A comparison of time series between stations to identify similarities among trends
 * __Overall trends__: Map-based and tabular summary of trend tests for all stations shown together
 
 Each main tab includes sub-tabs or drop-down menus for selecting and viewing different content. Most analyses are also grouped by constituent type as nutrients, metals, or organics.  The following shows which constituents are included in each type.
@@ -1668,7 +1664,7 @@ Note: Changing the station selection above does not affect the estimates since t
 
 ### Optimal effort across constituents
 
-This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases. Mouseover a point to see details (station, parameter, effort, change, median value, thresholds if applicable, quantile of median relative to other sites, weighting for point size, and weighting type as either quantile if relative to median or threshold if relative to threshold).
+This sub-tab further summarizes power across sites for all constituents of the selected type (`r renderText(input$consel2)`). This is the same plot as the previous tab, except power curves that satisfy the requirement for estimating optimal power are combined across constituents for the selected constituent type.  The top plot shows boxplot distributions of optimal power efforts for each station separated by constituent.  The middle (white) boxplot shows the distribution after combining optimal efforts across constituents.  The optimal effort is the median of all optimal efforts combined.  The bottom plot shows power curves for all stations and constituents with the grey points indicating the optimal effort at a station.  The grey points are sized relative to how close the median concentration at a site is to the threshold. Thresholds were obtained from OCPW and are approximate in some cases. Mouseover a point to see details (station, parameter, effort, change, median value, thresholds if applicable, quantile of median relative to other sites, weighting for point size, and weighting type as either quantile if relative to median or threshold if relative to threshold).  __Note that for some constituent types, the y-axis on the top boxplots may not show all labels if they do not fit (e.g., organics).  Use the mouse to zoom in on the plot to view the labels correctly.__
 
 ```{r}
 column(12,
@@ -1828,7 +1824,7 @@ renderPlot({obsp6()}, height = 450, width = 700)
 ```{r}
 column(12,
   column(4,
-    selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'),  selected = 'nutrs')
+    selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'),  selected = 'Nutrients')
   ),
   column(4, 
     selectInput('locsel4', 'Select sampling location:', choices = lxs)     
