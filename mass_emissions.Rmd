@@ -1355,7 +1355,7 @@ alltrndmap <- reactive({
   labs <- paste(tomap$StationCode, ': ', tomap$trend, ', tau = ', tomap$tau, ', p = ', tomap$pval)
   mapviewOptions(leafletHeight = 500)
 
-  out <- mapview(tomap, zcol = 'tau', cex = cexv, label = labs, col.regions = cols, legend = F, map.types = mptyps)@map
+  out <- mapview(tomap, zcol = 'trend', cex = cexv, label = labs, col.regions = cols, legend = F, map.types = mptyps)@map
 
   return(out)
 
