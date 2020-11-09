@@ -93,12 +93,13 @@ wcchem1 <- read.csv('data/raw/Harbors & Estuaries Water Column Chemistry 2010-20
 wcchem2 <- read.csv('data/raw/Harbors & Estuaries Water Column Chemistry 2015-2020.csv')
 
 wcchem <- bind_rows(wcchem1, wcchem2) %>% 
-  select(-Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Type, -Sample.Type, -QA.Type, -SampleDepth) %>% 
+  select(-Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Sample.Type, -QA.Type, -SampleDepth) %>% 
   mutate(
     Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
-    Date = as.Date(Date)
+    Date = as.Date(Date),
+    Type = gsub('T$|F$', '', Type)
     ) %>% 
-  group_by(Station, Date, Parameter, Units, WaterShed) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Type) %>% 
   summarise(
     Result = mean(Result, na.rm  = T),
     Qualifier = unique(Qualifier), 
@@ -117,7 +118,7 @@ wcchem <- bind_rows(wcchem1, wcchem2) %>%
       T ~ Parameter
     )
   ) %>% 
-  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier, Type) %>% 
   summarise(
     Result = sum(Result, na.rm = T), 
     .groups = 'drop'
@@ -127,16 +128,18 @@ wcchem <- bind_rows(wcchem1, wcchem2) %>%
   ungroup %>% 
   filter(Parameter %in% c(nutrs, metals, organs)) %>%
   mutate(
-    location = 'wc'
+    location = 'wc', 
+    Result = ifelse(Qualifier == '<', 0, Result)
   )
 
 sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.csv') %>% 
-  select(-Entry.Set, -Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Type, -Sample.Type, -QA.Type, -SampleDepth) %>% 
+  select(-Entry.Set, -Program, -LogNumber, -Analysis, -Result.Type, -Filtered, -MatrixCode, -Sample.Type, -QA.Type, -SampleDepth) %>% 
   mutate(
     Date = mdy_hm(Date, tz = 'Pacific/Pitcairn'), 
-    Date = as.Date(Date)
+    Date = as.Date(Date),
+    Type = gsub('T$|F$', '', Type)
   ) %>% 
-  group_by(Station, Date, Parameter, Units, WaterShed) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Type) %>% 
   summarise(
     Result = mean(Result, na.rm  = T),
     Qualifier = unique(Qualifier), 
@@ -152,7 +155,7 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
       T ~ Parameter
     )
   ) %>% 
-  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier) %>% 
+  group_by(Station, Date, Parameter, Units, WaterShed, Qualifier, Type) %>% 
   summarise(
     Result = sum(Result, na.rm = T), 
     .groups = 'drop'
@@ -162,7 +165,8 @@ sedchem <- read.csv('data/raw/SAR Harbors & Estuaries Sediment Chemistry Data.cs
   ungroup %>% 
   filter(Parameter %in% c(nutrs, metals, organs)) %>%
   mutate(
-    location = 'sd'
+    location = 'sd',
+    Result = ifelse(Qualifier == '<', 0, Result)
   )
 
 # station locations
@@ -1199,12 +1203,13 @@ powdat <- sddat %>%
 
 # data to eval, scns is not created all with crossing to minimize number of combos with no data
 scns <- powdat %>% 
-  select(StationCode, Parameter, location) %>% 
+  select(StationCode, Parameter, location, Type) %>% 
   unique %>% 
   rename(
     sta = StationCode, 
     par = Parameter, 
-    loc = location
+    loc = location, 
+    typ = Type
   ) %>% 
   crossing(
     .,
@@ -1231,6 +1236,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
   sta <- scns[i, ][['sta']]
   par <- scns[i, ][['par']]
   loc <- scns[i, ][['loc']]
+  typ <- scns[i, ][['typ']]
   chg <- scns[i, ][['chg']]
   eff <- scns[i, ][['eff']]
   
@@ -1238,6 +1244,7 @@ res <- foreach(i = 1:nrow(scns), .packages = c('lubridate', 'tidyverse', 'mgcv')
     filter(StationCode %in% sta) %>% 
     filter(Parameter %in% par) %>% 
     filter(location %in% loc) %>% 
+    filter(Type %in% typ) %>% 
     arrange(Date)
   
   simdat <- try({simvals(topow, chg = chg, eff = eff, sims = 1000)})
@@ -1295,7 +1302,7 @@ scns <- sddat %>%
     Season = yday(Date),
     dectime = decimal_date(Date)
   ) %>% 
-  group_by(StationCode, Parameter, location) %>% 
+  group_by(StationCode, Parameter, location, Type) %>% 
   nest
 
 # setup parallel backend
@@ -1391,7 +1398,7 @@ data(sdpows)
 
 sdopteff <- sdpows %>% 
   crossing(., powin = seq(0.1, 0.9, by = 0.1)) %>% 
-  group_by(par, sta, loc, powin) %>% 
+  group_by(par, sta, loc, typ, powin) %>% 
   nest %>% 
   mutate(
     opt = purrr::pmap(list(data, powin), function(data, powin) getopt(datin = data, pow = powin))
