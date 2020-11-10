@@ -93,6 +93,12 @@ data(sdpows)
 data(sdthrs)
 data(sdopteff)
 
+# smpsel choices
+wx <- c('dry' = 'D', 'wet'= 'S')
+
+# sampling location
+lxs <- c('Water column' = 'wc', 'Sediment' = 'sd')
+
 # constituents
 metals <- c("Ag", "As", "Cd", "Cr", "Cu", "Fe", "Hg", "Ni", "Pb", "Se",
             "Zn")
@@ -107,14 +113,12 @@ organs <- c("2,4'-D", "2,4-DB", "2,4,5 TP-Silvex", "2,4,5,-T", "Aldrin",
             "Ethoprop", "Ethyl Parathion", "Fensulfothion", "Fenthion", "Gamma-BHC", 
             "GLYP", "Heptachlor Epoxide", "HPAH", "L-Cyhalothrin", "LPAH", 
             "Malathion", "MCPA", "MCPP", "Merphos", "Mevinphos", "Mirex", 
-            "Nitrogen-S", "OxyChlordane", "Parathion-methyl", "PCB", "Permethrin", 
-            "Perthane", "pH", "Phorate", "Phosphorus-S", "Prallethrin", "Prometon", 
+            "OxyChlordane", "Parathion-methyl", "PCB", "Permethrin", 
+            "Perthane", "pH", "Phorate", "Prallethrin", "Prometon", 
             "Prometryn", "Ronnel", "Sb", "Simazine", "Tetrachlorovinphos", 
             "Tl", "TOC-S", "Tokuthion", "Total chlordane", "Toxaphene", "Trans-Permethrin", 
             "Trichloronate")
 nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Orthophosphate', 'Total Phosphorus', 'Phosphorus-S', 'Nitrogen-S')
-
-lxs <- c('Water column' = 'wc', 'Sediment' = 'sd')
 ```
 
 ```{r reactives}
@@ -218,6 +222,7 @@ stapardat <- reactive({
   # inputs
   stasel <- input$stasel
   varsel <- input$varsel
+  smpsel <- input$smpsel
   locsel2 <- input$locsel2
 
   req(varsel)
@@ -227,6 +232,7 @@ stapardat <- reactive({
     filter(StationCode %in% stasel) %>%
     filter(Parameter %in% varsel) %>%
     filter(location %in% locsel2) %>%
+    filter(Type %in% smpsel) %>% 
     mutate(
       Detection = case_when(
         Qualifier %in% '<' ~ 'below detection',
@@ -533,7 +539,8 @@ powdat <- reactive({
   stasel <- input$stasel
   varsel <- input$varsel
   locsel2 <- input$locsel2
-
+  smpsel <- input$smpsel
+  
   req(varsel)
   req(stasel)
 
@@ -541,6 +548,7 @@ powdat <- reactive({
     filter(StationCode %in% stasel) %>%
     filter(Parameter %in% varsel) %>%
     filter(location %in% locsel2) %>%
+    filter(Type %in% smpsel) %>% 
     mutate(
       Year = year(Date),
       Season = yday(Date),
@@ -581,11 +589,13 @@ powplo3 <- reactive({
   stasel <- input$stasel
   varsel <- input$varsel
   locsel2 <- input$locsel2
+  smpsel <- input$smpsel
 
   toplo <- sdpows %>%
     filter(sta %in% stasel) %>%
     filter(par %in% varsel) %>%
-    filter(loc %in% locsel2)
+    filter(loc %in% locsel2) %>% 
+    filter(typ %in% smpsel)
 
   p <- ggplot(toplo, aes(x = eff, y = chg, z = pow)) +
     # geom_tile() +
@@ -614,11 +624,13 @@ powplo6 <- reactive({
   stasel <- input$stasel
   varsel <- input$varsel
   locsel2 <- input$locsel2
+  smpsel <- input$smpsel
 
   toplo <- sdthrs %>%
     filter(StationCode %in% stasel) %>%
     filter(Parameter %in% varsel) %>% 
-    filter(location %in% locsel2)
+    filter(location %in% locsel2) %>% 
+    filter(Type %in% smpsel)
 
   p <- ggplot(toplo, aes(x = effs, y = vals, z = pow)) +
     # geom_tile() +
@@ -919,6 +931,7 @@ optdat <- reactive({
   consel2 <- input$consel2
   locsel2 <- input$locsel2
   thrsel <- input$thrsel
+  smpsel <- input$smpsel
   
   varthr <- varthr()
   
@@ -933,7 +946,8 @@ optdat <- reactive({
   dat <- sdpows %>%
     filter(par %in% varsel) %>%
     filter(loc %in% locsel2) %>% 
-    filter(sta %in% stasels)
+    filter(sta %in% stasels) %>% 
+    filter(typ %in% smpsel)
 
   # get median values of constituent for each station
   # calculate diff from threshold as a weight for the size in the plots
@@ -944,6 +958,7 @@ optdat <- reactive({
     filter(Watershed %in% shdsel) %>% 
     filter(StationCode %in% dat$sta) %>%
     filter(location %in% locsel2) %>% 
+    filter(Type %in% smpsel) %>% 
     left_join(varthr, by = c('Watershed', 'Parameter', 'location')) %>% 
     group_by(StationCode) %>%
     summarise(
@@ -1006,16 +1021,22 @@ opttxt <- reactive({
   # input
   powsel <- input$powsel
   locsel2 <- input$locsel2
+  smpsel <- input$smpsel
   optdat <- optdat()
 
   locsel2 <- case_when(
     locsel2 == 'sd' ~ 'sediment',
     locsel2 == 'wc' ~ 'water column'
   )
+  
+  smpsel <- case_when(
+    smpsel == 'D' ~ 'dry', 
+    smpsel == 'S' ~ 'wet'
+  )
 
   opts <- optdat$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  out <- paste0("Optimal sample effort in ", locsel2, " at ", powsel, " power: ", medv)
+  out <- paste0("Optimal sample effort in ", locsel2, " during ", smpsel, "weather at ", powsel, " power: ", medv)
 
   return(out)
 
@@ -1104,6 +1125,7 @@ optdat2 <- reactive({
   shdsel <- input$shdsel
   varthr2 <- varthr2()
   thrsel <- input$thrsel
+  smpsel <- input$smpsel
   
   if(shdsel == 'all')
     shdsel <- unique(sddat$Watershed)
@@ -1116,7 +1138,8 @@ optdat2 <- reactive({
   dat <- sdpows %>% 
     filter(par %in% get(consel2)) %>% 
     filter(loc %in% locsel2) %>% 
-    filter(sta %in% stasels)
+    filter(sta %in% stasels) %>% 
+    filter(typ %in% smpsel)
 
   # get median values of constituent for each station
   # calculate diff from threshold as a weight for the size in the plots
@@ -1127,6 +1150,7 @@ optdat2 <- reactive({
     filter(Watershed %in% shdsel) %>% 
     filter(StationCode %in% dat$sta) %>%
     filter(location %in% locsel2) %>% 
+    filter(Type %in% smpsel) %>% 
     left_join(varthr2, by = c('Watershed', 'Parameter', 'location')) %>% 
     group_by(StationCode, Parameter) %>%
     summarise(
@@ -1153,6 +1177,7 @@ optdat2 <- reactive({
     filter(par %in% get(consel2)) %>% 
     filter(sta %in% dat$sta) %>% 
     filter(loc %in% locsel2) %>% 
+    filter(typ %in% smpsel) %>% 
     group_by(sta, par) %>%
     nest %>%
     mutate(
@@ -1173,29 +1198,31 @@ optdat2 <- reactive({
       filter(reltyp %in% 'threshold')
   
   validate(
-    need(!inherits(opts, 'try-error'), 'Insufficient data, try lower power')
+    need(!inherits(opts, 'try-error'), 'Insufficient data')
   )
   
   # cut if no data
   validate(
-    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data, try lower power')
+    need(nrow(opts) > 0 & ncol(opts) > 1, 'Insufficient data')
   )
 
   validate(
-    need('eff' %in% names(opts), 'Insufficient data, try lower power')
+    need('eff' %in% names(opts), 'Insufficient data')
   )
 
   out <- sdpows %>%
     unite('stapar', sta, par, remove = F, sep = ', ') %>%
     filter(stapar %in% opts$stapar) %>% 
     filter(loc %in% locsel2) %>% 
-    filter(par %in% get(consel2))
+    filter(par %in% get(consel2)) %>% 
+    filter(typ %in% smpsel)
 
   selopteff <- sdopteff %>%
     filter(powin %in% powsel2) %>% 
     filter(loc %in% locsel2) %>% 
     filter(par %in% get(consel2)) %>% 
-    filter(sta %in% dat$sta) %>% 
+    filter(sta %in% dat$sta) %>%
+    filter(typ %in% smpsel) %>% 
     unite('stapar', sta, par, remove = F, sep = ', ') %>%
     filter(stapar %in% opts$stapar)
   
@@ -1216,15 +1243,21 @@ opttxt2 <- reactive({
   powsel2 <- input$powsel2
   locsel2 <- input$locsel2
   optdat2 <- optdat2()
-
+  smpsel <- input$smpsel
+  
   locsel2 <- case_when(
     locsel2 == 'sd' ~ 'sediment',
     locsel2 == 'wc' ~ 'water column'
   )
 
+  smpsel <- case_when(
+    smpsel == 'D' ~ 'dry', 
+    smpsel == 'S' ~ 'wet'
+  )
+  
   opts <- optdat2$opts
   medv <- median(opts$eff, na.rm = T) %>% round(2)
-  out <- paste0("Optimal sample effort in ", locsel2, " at ", powsel2, " power: ", medv)
+  out <- paste0("Optimal sample effort in ", locsel2, " during ", smpsel, " weather at ", powsel2, " power: ", medv)
 
   return(out)
 
@@ -1296,7 +1329,7 @@ opttab2 <- reactive({
   optdat2 <- optdat2()
 
   totab <- optdat2$opts %>%
-    select(Parameter, sta, eff, medval, qntval, Threshold)
+    select(Parameter, sta, eff, medval, Threshold)
 
   out <- reactable(totab,
                    groupBy = 'Parameter',
@@ -1305,7 +1338,6 @@ opttab2 <- reactive({
                      sta = colDef(name = 'Station'),
                      eff = colDef(name = 'Optimal effort'),
                      medval = colDef(name = 'Median value at station'),
-                     qntval = colDef(name = 'Quantile of median value'), 
                      Threshold = colDef(name = 'Threshold')
                    ),
                    defaultColDef = colDef(
@@ -1522,7 +1554,7 @@ fillCol(reactableOutput('invtab'))
 
 ## Trends and power analyses {.tabset .tabset-pills}
 
-This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type filters which constituents can be selected.  The watershed filters the stations that can be selected.  Finally, the sampling location selection filters water column or sediment sampling for the selected station/constituent.  Each sub-tab contains additional information about the results.
+This tab shows trends and power analysis results for selected constituents. The drop-down menus are filters to select the data to observe. The constituent type filters which constituents can be selected.  The watershed filters the stations that can be selected and the sampling location selection filters water column or sediment sampling for the selected station/constituent.  The sampling weather filter selects data based on dry weather or wet weather sampling (__note that there is no wet weather sampling for sediment data__). Each sub-tab contains additional information about the results.
 
 ```{r}
 column(12,
@@ -1580,6 +1612,12 @@ column(12,
       
       })
   ),
+  column(6, 
+       selectInput('smpsel', 'Select sampling weather:', choices = wx)
+  )
+)
+
+column(12, 
   column(6,
     selectInput('thrsel', 'Filter sites (optimal effort plots only):', choices = c('all', 'Thresholds only'))
   )
