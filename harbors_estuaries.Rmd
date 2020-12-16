@@ -1357,12 +1357,14 @@ alltrnd <- reactive({
   # input
   varsel4 <- input$varsel4
   locsel4 <- input$locsel4
+  smpsel2 <- input$smpsel2
 
   req(varsel4)
 
   out <- sddat %>%
     filter(Parameter %in% varsel4) %>%
     filter(location %in% locsel4) %>% 
+    filter(Type %in% smpsel2) %>% 
     mutate(
       Year = year(Date),
       Month = month(Date, label = T)
@@ -1874,13 +1876,15 @@ renderPlot({obsp6()}, height = 450, width = 700)
 
 ```{r}
 column(12,
-  column(4,
+  column(6,
     selectInput('consel4', 'Select constituent type:', choices = list('Metals' =  'metals', 'Nutrients' = 'nutrs', 'Organic' = 'organs'),  selected = 'Nutrients')
   ),
-  column(4, 
+  column(6, 
     selectInput('locsel4', 'Select sampling location:', choices = lxs)     
-  ),
-  column(4,
+  )
+)
+column(12, 
+  column(6,
     renderUI({
 
       # input
@@ -1899,6 +1903,9 @@ column(12,
       selectInput('varsel4', 'Select constituent:', choices = sels)
 
     })
+  ), 
+  column(6,
+     selectInput('smpsel2', 'Select sampling weather:', choices = wx)
   )
 )
 
