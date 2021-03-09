@@ -381,7 +381,7 @@ hotmap <- reactive({
   
   mapviewOptions(leafletHeight = 400)
 
-  m <- mapview(tomap, zcol = 'n', cex = tomap$cexs, label = labs, legend = F, layer.name = F, col.regions = tomap$cols, homebutton = F, map.types = mptyps)
+  m <- mapview(tomap, cex = tomap$cexs, label = labs, legend = F, layer.name = F, col.regions = tomap$cols, homebutton = F, map.types = mptyps)
   
   # add legend
   out <- m@map %>% 
