@@ -1678,7 +1678,21 @@ alltrndmap <- reactive({
 })
 ```
 
+```{r downloads}
+output$downloadData <- downloadHandler(
+  filename = function() {"tissue.csv"},
+  content = function(file) {
+    write.csv(tsdat, file, row.names = FALSE)
+  }
+)
+```
+
 ## Inventory {.tabset .tabset-pills}
+
+```{r}
+downloadBttn('downloadData', 'Download data', style = 'simple', block = F, color = 'success', size = 'sm')
+```
+<br>
 
 ### Maps
 

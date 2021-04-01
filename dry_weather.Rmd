@@ -828,6 +828,15 @@ obsp3 <- reactive({
 })
 ```
 
+```{r downloads}
+output$downloadData <- downloadHandler(
+  filename = function() {"dry_weather.csv"},
+  content = function(file) {
+    write.csv(dwdat, file, row.names = FALSE)
+  }
+)
+```
+
 This website presents an evaluation of the Orange County dry weather (ID/IC) dataset. The content is separated into three main tabs.  
 
 * __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
@@ -840,6 +849,11 @@ Each main tab includes sub-tabs or drop-down menus for selecting and viewing dif
 * __Nutrients__: `r paste(nutrs, collapse = ', ')`
 
 ## Inventory {.tabset .tabset-pills}
+
+```{r}
+downloadBttn('downloadData', 'Download data', style = 'simple', block = F, color = 'success', size = 'sm')
+```
+<br>
 
 ### Maps
 

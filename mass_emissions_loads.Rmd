@@ -32,6 +32,7 @@ library(ggrepel)
 library(ggExtra)
 library(plotly)
 library(matrixStats)
+library(shinyWidgets)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
 
@@ -800,6 +801,15 @@ alltrndmap <- reactive({
 
 ```
 
+```{r downloads}
+output$downloadData <- downloadHandler(
+  filename = function() {"mass_emissions_loads.csv"},
+  content = function(file) {
+    write.csv(lddat, file, row.names = FALSE)
+  }
+)
+```
+
 This website presents an evaluation of the Orange County mass emissions loading monitoring dataset. The content is separated into four main tabs.  
 
 * __Inventory__: Map-based and tabular summaries of monitoring effort and basic characteristics of the data
@@ -813,6 +823,11 @@ Each main tab includes sub-tabs or drop-down menus for selecting and viewing dif
 * __Metals__: `r paste(metals, collapse = ', ')`
 
 ## Inventory {.tabset .tabset-pills}
+
+```{r}
+downloadBttn('downloadData', 'Download data', style = 'simple', block = F, color = 'success', size = 'sm')
+```
+<br>
 
 ### Maps
 
