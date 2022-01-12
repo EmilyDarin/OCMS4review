@@ -1,0 +1,18 @@
+﻿StationCode,Watershed,Date,Parameter,Result,Units,Longitude,Latitude
+ANAB0151@WES,Santa Ana River,5/23/16,ENT,4.70E+03,CFU/100 ml,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,FC,1.60E+04,CFU/100 ml,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,TC,3.80E+04,CFU/100 ml,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,AirTemperature,2.00E+01,deg C,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,Ammonia,1.00E-01,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,AnionicSurfactants,2.50E-01,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,DaysSinceLastRain,1.70E+01,none,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,DissolvedCu,2.00E-01,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,DissolvedHexCr,5.00E-02,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,DO,8.27E+00,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,EC,9.06E+02,uS/cm,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,Hardness,3.30E+02,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,Total Nitrogen,3.40E+00,mg/L,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,pH,8.28E+00,SU,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,PipeDischargeRate,2.90E-02,cfs,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,PipeLeafTime,6.41E+00,sec/6 ft,-118.002,33.82423
+ANAB0151@WES,Santa Ana River,5/23/16,PipeWaterHt,6.50E-02,ft,-118.002,33.82423

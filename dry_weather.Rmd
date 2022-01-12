@@ -31,8 +31,17 @@ library(english)
 library(vegan)
 library(ggord)
 library(patchwork)
+library(plotly)
+library(yaml)
+library(pracma)
+library(shinythemes)
+library(shinycssloaders)
+library(pwr)
+library(purrr)
 
 mptyps <- c("CartoDB.Positron", "CartoDB.DarkMatter", "OpenStreetMap", "Esri.WorldImagery", "OpenTopoMap")
+# nutrients, top parameters (top ten plus those with thresholds)
+nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Total Nitrogen', 'Orthophosphate', 'Total Phosphorus')
 
 mapviewOptions(leafletHeight = 300)
 
@@ -41,39 +50,61 @@ prj <- 4326 # wgs84
 source('R/funcs.R')
 
 ##
+
+
+
+
 # ggplot themes
 
-data(dwdat)
+#dataframe needed to upload
+
+
+#dwdat<- read_csv("upload.csv")
+
+
+#static dataframes
 data(thrsdat)
 data(tmdldat)
+data(dwdat)
+  
+# test<-dwdat%>%
+#   slice(1:3000)
+# 
+# write.csv(test, "upload.csv")
+
+
+
 
 # xy locs
-locs <- dwdat %>%
-  select(StationCode, Longitude, Latitude) %>%
-  unique
+# locs <- dwdat %>%
+#   select(StationCode, Longitude, Latitude) %>%
+#   unique
+# 
 
-# date ranges
-dts <- dwdat %>% 
-  pull(Date) %>% 
+# # date ranges
+dts <- dwdat %>%
+  pull(Date) %>%
   range
 
 # obs ranges per station
-obsrng <- dwdat %>% 
-  group_by(StationCode, Parameter) %>% 
-  summarise(n = n()) %>% 
-  pull(n) %>% 
+obsrng <- dwdat %>%
+  group_by(StationCode, Parameter) %>%
+  summarise(n = n()) %>%
+  pull(n) %>%
   range
 
 # obs ranges per station, averages across parameters
-obsave <- dwdat %>% 
-  group_by(StationCode, Parameter) %>% 
-  summarise(n = n()) %>% 
-  group_by(StationCode) %>% 
-  summarise(n = mean(n, na.rm = T)) %>% 
+obsave <- dwdat %>%
+  group_by(StationCode, Parameter) %>%
+  summarise(n = n()) %>%
+  group_by(StationCode) %>%
+  summarise(n = mean(n, na.rm = T)) %>%
   mutate(n = round(n, 1))
-obsaverng <- obsave %>% 
-  pull(n) %>% 
+obsaverng <- obsave %>%
+  pull(n) %>%
   range
+
+
 
 # color palette for hotspot exceedances, as prop
 hotcol <- colorNumeric(
@@ -82,8 +113,8 @@ hotcol <- colorNumeric(
     domain = c(0, 100)
   )
 
-# nutrients, top parameters (top ten plus those with thresholds)
-nutrs <- c('Ammonia', 'Nitrate, Nitrite', 'Total Kjeldahl Nitrogen', 'Total Nitrogen', 'Orthophosphate', 'Total Phosphorus')
+
+
 tops <- table(dwdat$Parameter) %>% sort %>% rev %>% .[1:10] %>% names %>% sort
 tops <- thrsdat %>% 
   pull(Parameter) %>% 
@@ -105,6 +136,30 @@ tmdl <- list(
 ```
 
 ```{r reactives}
+
+  data <- reactive({
+    req(input$file_upload)
+    read.csv(input$file_upload$datapath)
+    
+  })
+
+locs<-reactive({
+  req(input$file_upload)
+  
+  
+  locs <- data() 
+  
+  
+  locs%>%
+  select(StationCode, Longitude, Latitude) %>%
+  unique
+  
+  locs<-as.data.frame(locs)
+  
+  
+})
+
+
 # get threshold variable
 varthr <- reactive({
   
@@ -142,8 +197,11 @@ hotrng <- reactive({
   
 })
 
+
+
 # hotspot data
 hotdat <- reactive({
+  
   
   # inputs
   cntsel <- input$cntsel
@@ -155,7 +213,11 @@ hotdat <- reactive({
   req(thrsel2)
 
   # filter by tmdl waterbodies
-  if(tmdsel & length(locsel) > 0){
+  if(tmdsel 
+     
+     & length(locsel) 
+     
+     > 0){
     
     grp <- tmdl %>% 
       filter(Parameter %in% varsel3) %>% 
@@ -211,13 +273,18 @@ hotdat <- reactive({
 # map of exceedances
 hotmap <- reactive({
   
+
+  
+ #locs<-locs()
+  
   # input
   hotdat <- hotdat()
+  locs<-locs()
   
   req(nrow(hotdat) > 0)
   
   tomap <- hotdat %>%
-    left_join(locs, by = 'StationCode') %>%
+    left_join(locs, by = 'StationCode', copy=TRUE ) %>%
     st_as_sf(coords = c("Longitude", "Latitude"), crs = prj)
 
   # hover pt labels
@@ -235,6 +302,8 @@ hotmap <- reactive({
   return(out)
   
 })
+
+
 ```
 
 This website presents an evaluation of the Orange County dry weather (ID/IC) dataset. The content is separated into three main tabs.  
@@ -255,11 +324,33 @@ This tab show hotspots for stations that have many exceedances over the period o
 ### Individual constituents
 
 ```{r}
+
+
+
+
+column(12, 
+       column(12, 
+              sidebarPanel(
+        textOutput("Data control elements"),
+        # mod_data_ui("data_selection"),
+        fileInput("file_upload", "Import csv data", accept = ".csv")
+        #),
+         # Dataset filters
+        # choice_ui("choice_ui_watershed", "Watershed"),
+        # choice_ui("choice_ui_station", "Station"),
+        # choice_ui("choice_ui_parameter", "Parameter"),
+        # choice_ui("choice_ui_unit", "Unit"),
+        # choice_ui("choice_ui_fraction", "Fraction")
+        ),
+        
+        ))
+
+
 column(12, 
        column(4, 
               selectInput('varsel3', 'Select constituent:', choices = sort(c(tops, nutrs)), selected = 'ENT')
        ),
-       column(8, 
+       column(8,
               sliderInput('dtssel', 'Select date range:', min = dts[1], max = dts[2], value = dts, timeFormat="%Y-%m", width = '600px')
        )
 )
@@ -272,33 +363,35 @@ column(12,
        )
 )
 column(12,
-       column(4,               
+       column(4,
               renderUI({
-                
+
+
+            #locs<-locs()
                 # input
                 varsel3 <- input$varsel3
                 tmdsel <- as.logical(input$tmdsel)
-                
+
                 req(tmdsel)
-                
-                # get receiving tmdl waterbodies 
-                grp <- tmdl %>% 
-                  filter(Parameter %in% varsel3) %>% 
+
+                # get receiving tmdl waterbodies
+                grp <- tmdl %>%
+                  filter(Parameter %in% varsel3) %>%
                   pull(grp)
-                locs <- tmdldat %>% 
-                  filter(Parameter %in% !!grp) %>% 
-                  pull(Receiving) %>% 
+                locs <- tmdldat %>%
+                  filter(Parameter %in% !!grp) %>%
+                  pull(Receiving) %>%
                   unique
-                
+
                 if(length(locs) == 0)
                   out <- 'No TMDLs for selection'
-                
-                if(length(locs) > 0)
+
+                if(length(locs1) > 0)
                   out <- pickerInput(inputId = "locsel", label = 'Select TMDL receiving waterbodies:', choices = locs,
-                    options = list(`actions-box` = TRUE, size = 20), selected = locs, multiple = TRUE)      
-                
+                    options = list(`actions-box` = TRUE, size = 20), selected = locs, multiple = TRUE)
+
                 return(out)
-                
+
               })
        ),
        column(4,
@@ -338,5 +431,7 @@ This map shows the percentage of observations above a threshold for `r renderTex
 Sites can also be filtered based on the receiving waterbody with a TMDL.  Selecting "TRUE" from the drop-down list will create an additional list to filter the stations by the receiving waterbody. By default, all stations are shown.
 
 ```{r}
+
+
 renderLeaflet(hotmap())
 ```
